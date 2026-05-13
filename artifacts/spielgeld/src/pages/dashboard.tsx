@@ -1,0 +1,291 @@
+import React, { useState } from "react";
+import { 
+  useGetBank, 
+  useGetStats, 
+  useListPlayers, 
+  useCreatePlayer, 
+  useDeletePlayer, 
+  useBuyChips,
+  getGetBankQueryKey,
+  getGetStatsQueryKey,
+  getListPlayersQueryKey
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+
+export default function Dashboard() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  
+  const { data: bank, isLoading: isBankLoading } = useGetBank();
+  const { data: stats, isLoading: isStatsLoading } = useGetStats();
+  const { data: players, isLoading: isPlayersLoading } = useListPlayers();
+  
+  const createPlayer = useCreatePlayer();
+  const deletePlayer = useDeletePlayer();
+  const buyChips = useBuyChips();
+
+  const [newPlayerName, setNewPlayerName] = useState("");
+
+  const formatCurrency = (val: number) => {
+    return val.toFixed(2).replace('.', ',') + " €";
+  };
+
+  const handleCreatePlayer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPlayerName.trim()) return;
+    
+    createPlayer.mutate(
+      { data: { name: newPlayerName.trim() } },
+      {
+        onSuccess: () => {
+          setNewPlayerName("");
+          toast({ title: "Spieler hinzugefügt", description: "5,00 € Fixum wurden automatisch eingezahlt." });
+          queryClient.invalidateQueries({ queryKey: getListPlayersQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetBankQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetStatsQueryKey() });
+        },
+        onError: () => {
+          toast({ title: "Fehler", description: "Spieler konnte nicht hinzugefügt werden.", variant: "destructive" });
+        }
+      }
+    );
+  };
+
+  const handleDeletePlayer = (id: number) => {
+    deletePlayer.mutate(
+      { id },
+      {
+        onSuccess: (data) => {
+          toast({ title: "Spieler ausgezahlt und gelöscht", description: `${formatCurrency(data.cashoutAmount)} wurden ausgezahlt.` });
+          queryClient.invalidateQueries({ queryKey: getListPlayersQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetBankQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetStatsQueryKey() });
+        },
+        onError: () => {
+          toast({ title: "Fehler", description: "Spieler konnte nicht gelöscht werden.", variant: "destructive" });
+        }
+      }
+    );
+  };
+
+  const handleBuyChips = (id: number, amount: number, onSuccessCb: () => void) => {
+    buyChips.mutate(
+      { id, data: { amount } },
+      {
+        onSuccess: () => {
+          toast({ title: "Jetons gekauft", description: `${formatCurrency(amount)} wurden gutgeschrieben.` });
+          onSuccessCb();
+          queryClient.invalidateQueries({ queryKey: getListPlayersQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetBankQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetStatsQueryKey() });
+        },
+        onError: () => {
+          toast({ title: "Fehler", description: "Jetons konnten nicht gekauft werden.", variant: "destructive" });
+        }
+      }
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-background text-foreground p-4 md:p-8 font-mono">
+      <div className="max-w-6xl mx-auto space-y-8">
+        
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-border pb-6">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">Kassa</h1>
+            <p className="text-sm text-muted-foreground mt-1">Spielgeld-Verwaltung</p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-muted-foreground uppercase tracking-widest mb-1">Bankbestand</p>
+            {isBankLoading ? (
+              <Skeleton className="h-10 w-40 ml-auto" />
+            ) : (
+              <div className="text-4xl md:text-5xl font-bold text-primary">
+                {formatCurrency(bank?.balance ?? 0)}
+              </div>
+            )}
+          </div>
+        </header>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="col-span-1 border-border bg-card">
+            <CardHeader>
+              <CardTitle className="text-lg text-primary uppercase tracking-wider">Statistik</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex justify-between items-center border-b border-border pb-2">
+                <span className="text-muted-foreground">Aktive Spieler</span>
+                {isStatsLoading ? <Skeleton className="h-6 w-8" /> : <span className="font-bold text-lg">{stats?.playerCount ?? 0}</span>}
+              </div>
+              <div className="flex justify-between items-center border-b border-border pb-2">
+                <span className="text-muted-foreground">Jetons im Spiel</span>
+                {isStatsLoading ? <Skeleton className="h-6 w-24" /> : <span className="font-bold text-lg">{formatCurrency(stats?.totalChipsInPlay ?? 0)}</span>}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="col-span-1 md:col-span-2 border-border bg-card">
+            <CardHeader>
+              <CardTitle className="text-lg text-primary uppercase tracking-wider">Neuer Spieler</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleCreatePlayer} className="flex gap-4 items-end">
+                <div className="flex-1 space-y-2">
+                  <label htmlFor="playerName" className="text-sm text-muted-foreground uppercase tracking-wider">Name</label>
+                  <Input 
+                    id="playerName" 
+                    value={newPlayerName} 
+                    onChange={(e) => setNewPlayerName(e.target.value)} 
+                    placeholder="Spielername eingeben..."
+                    className="border-border bg-background focus-visible:ring-primary"
+                  />
+                </div>
+                <Button type="submit" disabled={createPlayer.isPending || !newPlayerName.trim()} className="font-bold uppercase tracking-wider w-32">
+                  Hinzufügen
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="border-border bg-card">
+          <CardHeader>
+            <CardTitle className="text-lg text-primary uppercase tracking-wider">Spielerliste</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isPlayersLoading ? (
+              <div className="space-y-4">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
+            ) : players?.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                Keine aktiven Spieler vorhanden.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-border hover:bg-transparent">
+                      <TableHead className="text-muted-foreground uppercase tracking-wider font-bold">Name</TableHead>
+                      <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold">Bestand</TableHead>
+                      <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold">Eingekauft</TableHead>
+                      <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold">Aktionen</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {players?.map((player) => (
+                      <TableRow key={player.id} className="border-border hover:bg-muted/50 transition-colors">
+                        <TableCell className="font-medium text-lg">{player.name}</TableCell>
+                        <TableCell className="text-right font-bold text-primary">{formatCurrency(player.chipBalance)}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">{formatCurrency(player.totalBought)}</TableCell>
+                        <TableCell className="text-right space-x-2">
+                          <BuyChipsDialog 
+                            player={player} 
+                            onBuy={(amount, cb) => handleBuyChips(player.id, amount, cb)} 
+                            isPending={buyChips.isPending}
+                          />
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="destructive" size="sm" className="uppercase text-xs font-bold tracking-wider">Auszahlen & Löschen</Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent className="bg-card border-border">
+                              <AlertDialogHeader>
+                                <AlertDialogTitle className="text-foreground">Spieler auszahlen?</AlertDialogTitle>
+                                <AlertDialogDescription className="text-muted-foreground">
+                                  Soll {player.name} wirklich ausgezahlt und gelöscht werden? 
+                                  <br/><br/>
+                                  Auszahlungsbetrag: <strong className="text-foreground text-lg">{formatCurrency(player.chipBalance)}</strong>
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel className="bg-background text-foreground border-border hover:bg-muted">Abbrechen</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDeletePlayer(player.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Bestätigen</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+      </div>
+    </div>
+  );
+}
+
+function BuyChipsDialog({ player, onBuy, isPending }: { player: any, onBuy: (amount: number, cb: () => void) => void, isPending: boolean }) {
+  const [amount, setAmount] = useState<string>("");
+  const [open, setOpen] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const parsed = parseFloat(amount.replace(',', '.'));
+    if (isNaN(parsed) || parsed <= 0) return;
+    
+    onBuy(parsed, () => {
+      setOpen(false);
+      setAmount("");
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="secondary" size="sm" className="uppercase text-xs font-bold tracking-wider">Jetons kaufen</Button>
+      </DialogTrigger>
+      <DialogContent className="bg-card border-border sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle className="text-primary uppercase tracking-wider">Jetons kaufen für {player.name}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-6 pt-4">
+          <div className="space-y-2">
+            <label htmlFor="amount" className="text-sm text-muted-foreground uppercase tracking-wider">Betrag (€)</label>
+            <Input 
+              id="amount" 
+              type="text" 
+              inputMode="decimal"
+              value={amount} 
+              onChange={(e) => setAmount(e.target.value)} 
+              placeholder="10,00"
+              className="border-border bg-background focus-visible:ring-primary text-lg"
+              autoFocus
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {[5, 10, 20, 50, 100].map(preset => (
+              <Button 
+                key={preset} 
+                type="button" 
+                variant="outline" 
+                className="border-border hover:bg-muted text-foreground"
+                onClick={() => setAmount(preset.toString())}
+              >
+                +{preset} €
+              </Button>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)} className="hover:bg-muted">Abbrechen</Button>
+            <Button type="submit" disabled={isPending || !amount} className="font-bold uppercase tracking-wider">Kaufen</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

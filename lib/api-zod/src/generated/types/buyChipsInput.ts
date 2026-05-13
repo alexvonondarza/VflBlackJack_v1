@@ -6,6 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface BuyChipsInput {
+  /**
+   * Amount in euros to buy
+   * @minimum 0.01
+   */
+  amount: number;
 }

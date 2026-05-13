@@ -3,13 +3,17 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Spielgeld-Verwaltung API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: players
+    description: Player management
+  - name: bank
+    description: Bank management
 paths:
   /healthz:
     get:
@@ -24,6 +28,113 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /players:
+    get:
+      operationId: listPlayers
+      tags: [players]
+      summary: List all players
+      responses:
+        "200":
+          description: List of all players
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Player"
+    post:
+      operationId: createPlayer
+      tags: [players]
+      summary: Create a new player (5€ Fixum goes to bank automatically)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlayerInput"
+      responses:
+        "201":
+          description: Created player
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Player"
+
+  /players/{id}:
+    delete:
+      operationId: deletePlayer
+      tags: [players]
+      summary: Delete and cashout a player (chip balance deducted from bank)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted player with cashout info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashoutResult"
+        "404":
+          description: Player not found
+
+  /players/{id}/buy-chips:
+    post:
+      operationId: buyChips
+      tags: [players]
+      summary: Player buys additional chips (amount added to bank and player balance)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BuyChipsInput"
+      responses:
+        "200":
+          description: Updated player
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Player"
+        "404":
+          description: Player not found
+
+  /bank:
+    get:
+      operationId: getBank
+      tags: [bank]
+      summary: Get current bank balance
+      responses:
+        "200":
+          description: Bank status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bank"
+
+  /stats:
+    get:
+      operationId: getStats
+      tags: [bank]
+      summary: Get overview statistics
+      responses:
+        "200":
+          description: App-wide stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stats"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +145,68 @@ components:
       required:
         - status
 
+    Player:
+      type: object
+      required: [id, name, chipBalance, totalBought, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        chipBalance:
+          type: number
+          description: Current chip value in euros
+        totalBought:
+          type: number
+          description: Total euros spent buying chips (including initial 5€)
+        createdAt:
+          type: string
+
+    PlayerInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+
+    BuyChipsInput:
+      type: object
+      required: [amount]
+      properties:
+        amount:
+          type: number
+          minimum: 0.01
+          description: Amount in euros to buy
+
+    CashoutResult:
+      type: object
+      required: [player, cashoutAmount, newBankBalance]
+      properties:
+        player:
+          $ref: "#/components/schemas/Player"
+        cashoutAmount:
+          type: number
+          description: Amount paid out to player
+        newBankBalance:
+          type: number
+
+    Bank:
+      type: object
+      required: [balance]
+      properties:
+        balance:
+          type: number
+          description: Current bank balance in euros
+
+    Stats:
+      type: object
+      required: [bankBalance, playerCount, totalChipsInPlay]
+      properties:
+        bankBalance:
+          type: number
+        playerCount:
+          type: integer
+        totalChipsInPlay:
+          type: number
+          description: Sum of all player chip balances
