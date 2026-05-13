@@ -6,8 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface Stats {
-  bankBalance: number;
-  playerCount: number;
-  totalChipsInPlay: number;
+export interface AddPlayerToSessionInput {
+  playerId: number;
 }

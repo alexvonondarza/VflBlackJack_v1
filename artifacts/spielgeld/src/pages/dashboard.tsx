@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "wouter";
 import { 
   useGetBank, 
   useGetStats, 
@@ -6,6 +7,7 @@ import {
   useCreatePlayer, 
   useDeletePlayer, 
   useBuyChips,
+  useGetActiveSession,
   getGetBankQueryKey,
   getGetStatsQueryKey,
   getListPlayersQueryKey
@@ -20,6 +22,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
@@ -28,6 +31,7 @@ export default function Dashboard() {
   const { data: bank, isLoading: isBankLoading } = useGetBank();
   const { data: stats, isLoading: isStatsLoading } = useGetStats();
   const { data: players, isLoading: isPlayersLoading } = useListPlayers();
+  const { data: activeSession } = useGetActiveSession();
   
   const createPlayer = useCreatePlayer();
   const deletePlayer = useDeletePlayer();
@@ -96,9 +100,25 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-4 md:p-8 font-mono">
+    <div className="p-4 md:p-8 font-mono">
       <div className="max-w-6xl mx-auto space-y-8">
         
+        {activeSession && (
+          <Link href="/session" className="block">
+            <Card className="border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 transition-colors cursor-pointer">
+              <CardContent className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <Badge variant="default" className="bg-orange-500 text-white uppercase tracking-wider font-bold">Aktiv</Badge>
+                  <span className="font-bold text-lg text-primary">{activeSession.name}</span>
+                </div>
+                <div className="text-muted-foreground uppercase text-sm tracking-wider font-bold">
+                  Zum Spielabend →
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        )}
+
         <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-border pb-6">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">Kassa</h1>

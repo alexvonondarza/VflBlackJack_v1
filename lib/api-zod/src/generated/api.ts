@@ -8,7 +8,6 @@
 import * as zod from "zod";
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
@@ -21,10 +20,8 @@ export const HealthCheckResponse = zod.object({
 export const ListPlayersResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
-  chipBalance: zod.number().describe("Current chip value in euros"),
-  totalBought: zod
-    .number()
-    .describe("Total euros spent buying chips (including initial 5€)"),
+  chipBalance: zod.number(),
+  totalBought: zod.number(),
   createdAt: zod.string(),
 });
 export const ListPlayersResponse = zod.array(ListPlayersResponseItem);
@@ -38,7 +35,7 @@ export const CreatePlayerBody = zod.object({
 });
 
 /**
- * @summary Delete and cashout a player (chip balance deducted from bank)
+ * @summary Delete and cashout a player
  */
 export const DeletePlayerParams = zod.object({
   id: zod.coerce.number(),
@@ -48,18 +45,16 @@ export const DeletePlayerResponse = zod.object({
   player: zod.object({
     id: zod.number(),
     name: zod.string(),
-    chipBalance: zod.number().describe("Current chip value in euros"),
-    totalBought: zod
-      .number()
-      .describe("Total euros spent buying chips (including initial 5€)"),
+    chipBalance: zod.number(),
+    totalBought: zod.number(),
     createdAt: zod.string(),
   }),
-  cashoutAmount: zod.number().describe("Amount paid out to player"),
+  cashoutAmount: zod.number(),
   newBankBalance: zod.number(),
 });
 
 /**
- * @summary Player buys additional chips (amount added to bank and player balance)
+ * @summary Player buys additional chips
  */
 export const BuyChipsParams = zod.object({
   id: zod.coerce.number(),
@@ -68,19 +63,14 @@ export const BuyChipsParams = zod.object({
 export const buyChipsBodyAmountMin = 0.01;
 
 export const BuyChipsBody = zod.object({
-  amount: zod
-    .number()
-    .min(buyChipsBodyAmountMin)
-    .describe("Amount in euros to buy"),
+  amount: zod.number().min(buyChipsBodyAmountMin),
 });
 
 export const BuyChipsResponse = zod.object({
   id: zod.number(),
   name: zod.string(),
-  chipBalance: zod.number().describe("Current chip value in euros"),
-  totalBought: zod
-    .number()
-    .describe("Total euros spent buying chips (including initial 5€)"),
+  chipBalance: zod.number(),
+  totalBought: zod.number(),
   createdAt: zod.string(),
 });
 
@@ -88,7 +78,7 @@ export const BuyChipsResponse = zod.object({
  * @summary Get current bank balance
  */
 export const GetBankResponse = zod.object({
-  balance: zod.number().describe("Current bank balance in euros"),
+  balance: zod.number(),
 });
 
 /**
@@ -97,5 +87,112 @@ export const GetBankResponse = zod.object({
 export const GetStatsResponse = zod.object({
   bankBalance: zod.number(),
   playerCount: zod.number(),
-  totalChipsInPlay: zod.number().describe("Sum of all player chip balances"),
+  totalChipsInPlay: zod.number(),
+});
+
+/**
+ * @summary List all game sessions
+ */
+export const ListGameSessionsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  status: zod.enum(["active", "ended"]),
+  createdAt: zod.string(),
+  endedAt: zod.string().nullish(),
+  playerCount: zod.number(),
+});
+export const ListGameSessionsResponse = zod.array(ListGameSessionsResponseItem);
+
+/**
+ * @summary Create a new game session
+ */
+
+export const CreateGameSessionBody = zod.object({
+  name: zod.string().min(1),
+});
+
+/**
+ * @summary Get the currently active game session with its players
+ */
+export const GetActiveSessionResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  status: zod.enum(["active", "ended"]),
+  createdAt: zod.string(),
+  endedAt: zod.string().nullish(),
+  players: zod.array(
+    zod.object({
+      sessionPlayerId: zod.number(),
+      playerId: zod.number(),
+      name: zod.string(),
+      chipBalance: zod.number(),
+      totalBought: zod.number(),
+      joinedAt: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get a game session with its players
+ */
+export const GetGameSessionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetGameSessionResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  status: zod.enum(["active", "ended"]),
+  createdAt: zod.string(),
+  endedAt: zod.string().nullish(),
+  players: zod.array(
+    zod.object({
+      sessionPlayerId: zod.number(),
+      playerId: zod.number(),
+      name: zod.string(),
+      chipBalance: zod.number(),
+      totalBought: zod.number(),
+      joinedAt: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary End a game session
+ */
+export const EndGameSessionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const EndGameSessionResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  status: zod.enum(["active", "ended"]),
+  createdAt: zod.string(),
+  endedAt: zod.string().nullish(),
+  playerCount: zod.number(),
+});
+
+/**
+ * @summary Add a player to a game session (5€ Fixum applied)
+ */
+export const AddPlayerToSessionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AddPlayerToSessionBody = zod.object({
+  playerId: zod.number(),
+});
+
+/**
+ * @summary Remove a player from a game session (reverts Fixum)
+ */
+export const RemovePlayerFromSessionParams = zod.object({
+  id: zod.coerce.number(),
+  playerId: zod.coerce.number(),
+});
+
+export const RemovePlayerFromSessionResponse = zod.object({
+  success: zod.boolean(),
+  revertedAmount: zod.number(),
 });

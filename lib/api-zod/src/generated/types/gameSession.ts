@@ -5,11 +5,13 @@
  * Spielgeld-Verwaltung API
  * OpenAPI spec version: 0.1.0
  */
+import type { GameSessionStatus } from "./gameSessionStatus";
 
-export interface Player {
+export interface GameSession {
   id: number;
   name: string;
-  chipBalance: number;
-  totalBought: number;
+  status: GameSessionStatus;
   createdAt: string;
+  endedAt?: string | null;
+  playerCount: number;
 }

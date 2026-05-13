@@ -9,7 +9,6 @@ import type { Player } from "./player";
 
 export interface CashoutResult {
   player: Player;
-  /** Amount paid out to player */
   cashoutAmount: number;
   newBankBalance: number;
 }

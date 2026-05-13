@@ -7,9 +7,6 @@
  */
 
 export interface BuyChipsInput {
-  /**
-   * Amount in euros to buy
-   * @minimum 0.01
-   */
+  /** @minimum 0.01 */
   amount: number;
 }

@@ -6,10 +6,18 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./addPlayerToSessionInput";
 export * from "./bank";
 export * from "./buyChipsInput";
 export * from "./cashoutResult";
+export * from "./gameSession";
+export * from "./gameSessionDetail";
+export * from "./gameSessionDetailStatus";
+export * from "./gameSessionInput";
+export * from "./gameSessionStatus";
 export * from "./healthStatus";
 export * from "./player";
 export * from "./playerInput";
+export * from "./removePlayerResult";
+export * from "./sessionPlayer";
 export * from "./stats";

@@ -7,6 +7,5 @@
  */
 
 export interface Bank {
-  /** Current bank balance in euros */
   balance: number;
 }

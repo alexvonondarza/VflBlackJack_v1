@@ -12,9 +12,7 @@ export interface HealthStatus {
 export interface Player {
   id: number;
   name: string;
-  /** Current chip value in euros */
   chipBalance: number;
-  /** Total euros spent buying chips (including initial 5€) */
   totalBought: number;
   createdAt: string;
 }
@@ -25,28 +23,79 @@ export interface PlayerInput {
 }
 
 export interface BuyChipsInput {
-  /**
-   * Amount in euros to buy
-   * @minimum 0.01
-   */
+  /** @minimum 0.01 */
   amount: number;
 }
 
 export interface CashoutResult {
   player: Player;
-  /** Amount paid out to player */
   cashoutAmount: number;
   newBankBalance: number;
 }
 
 export interface Bank {
-  /** Current bank balance in euros */
   balance: number;
 }
 
 export interface Stats {
   bankBalance: number;
   playerCount: number;
-  /** Sum of all player chip balances */
   totalChipsInPlay: number;
+}
+
+export type GameSessionStatus =
+  (typeof GameSessionStatus)[keyof typeof GameSessionStatus];
+
+export const GameSessionStatus = {
+  active: "active",
+  ended: "ended",
+} as const;
+
+export interface GameSession {
+  id: number;
+  name: string;
+  status: GameSessionStatus;
+  createdAt: string;
+  endedAt?: string | null;
+  playerCount: number;
+}
+
+export interface GameSessionInput {
+  /** @minLength 1 */
+  name: string;
+}
+
+export type GameSessionDetailStatus =
+  (typeof GameSessionDetailStatus)[keyof typeof GameSessionDetailStatus];
+
+export const GameSessionDetailStatus = {
+  active: "active",
+  ended: "ended",
+} as const;
+
+export interface SessionPlayer {
+  sessionPlayerId: number;
+  playerId: number;
+  name: string;
+  chipBalance: number;
+  totalBought: number;
+  joinedAt: string;
+}
+
+export interface GameSessionDetail {
+  id: number;
+  name: string;
+  status: GameSessionDetailStatus;
+  createdAt: string;
+  endedAt?: string | null;
+  players: SessionPlayer[];
+}
+
+export interface AddPlayerToSessionInput {
+  playerId: number;
+}
+
+export interface RemovePlayerResult {
+  success: boolean;
+  revertedAmount: number;
 }
