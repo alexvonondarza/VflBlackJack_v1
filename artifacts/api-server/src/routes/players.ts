@@ -90,7 +90,8 @@ router.delete("/players/:id", async (req, res) => {
       return;
     }
 
-    const cashoutAmount = Number(player.chipBalance);
+    // Cashout = fixumPaid (entry fees) + chipBalance (chip value)
+    const cashoutAmount = Number(player.fixumPaid) + Number(player.chipBalance);
 
     const bank = await ensureBank();
     await db

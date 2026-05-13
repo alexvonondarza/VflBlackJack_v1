@@ -206,25 +206,12 @@ router.post("/game-sessions/:id/finalize", async (req, res) => {
 
       const balanceBefore = Number(player.chipBalance);
       const balanceAfter = finalBalance;
-      const diff = balanceAfter - balanceBefore;
 
-      // Update player chip balance
+      // Update player chip balance (no bank adjustment — redistribution between players is zero-sum)
       await db
         .update(playersTable)
         .set({ chipBalance: String(finalBalance) })
         .where(eq(playersTable.id, playerId));
-
-      // Adjust bank: if player gains chips → bank loses, if player loses chips → bank gains
-      if (diff !== 0) {
-        const bank = await ensureBank();
-        await db
-          .update(bankTable)
-          .set({
-            balance: sql`${bankTable.balance} - ${diff}`,
-            updatedAt: new Date(),
-          })
-          .where(eq(bankTable.id, bank.id));
-      }
 
       // Save balance snapshot
       await db.insert(balanceSnapshotsTable).values({
