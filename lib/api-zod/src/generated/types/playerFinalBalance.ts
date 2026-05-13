@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface Bank {
-  balance: number;
+export interface PlayerFinalBalance {
+  playerId: number;
+  /** @minimum 0 */
+  finalBalance: number;
 }

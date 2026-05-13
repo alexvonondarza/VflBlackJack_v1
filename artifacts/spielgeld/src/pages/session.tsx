@@ -3,7 +3,7 @@ import {
   useGetActiveSession,
   useListGameSessions,
   useCreateGameSession,
-  useEndGameSession,
+  useFinalizeGameSession,
   useAddPlayerToSession,
   useRemovePlayerFromSession,
   useListPlayers,
@@ -38,7 +38,7 @@ export default function Session() {
   const { data: bank } = useGetBank();
 
   const createSession = useCreateGameSession();
-  const endSession = useEndGameSession();
+  const finalizeSession = useFinalizeGameSession();
   const addPlayer = useAddPlayerToSession();
   const removePlayer = useRemovePlayerFromSession();
   const buyChips = useBuyChips();
@@ -76,13 +76,14 @@ export default function Session() {
     );
   };
 
-  const handleEndSession = (id: number) => {
-    endSession.mutate(
-      { id },
+  const handleFinalizeSession = (id: number, balances: { playerId: number; finalBalance: number }[], cb: () => void) => {
+    finalizeSession.mutate(
+      { id, data: { balances } },
       {
         onSuccess: () => {
-          toast({ title: "Spielabend beendet" });
+          toast({ title: "Spielabend beendet \u2014 Endstände gespeichert" });
           invalidateAll();
+          cb();
         },
         onError: () => {
           toast({ title: "Fehler", description: "Spielabend konnte nicht beendet werden.", variant: "destructive" });
@@ -165,25 +166,11 @@ export default function Session() {
             <p className="text-sm text-muted-foreground mt-1">Laufender Spielabend</p>
           </div>
           <div className="flex items-center gap-4">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" className="font-bold uppercase tracking-wider">Spielabend beenden</Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent className="bg-card border-border">
-                <AlertDialogHeader>
-                  <AlertDialogTitle className="text-foreground">Spielabend beenden?</AlertDialogTitle>
-                  <AlertDialogDescription className="text-muted-foreground">
-                    Möchten Sie den Spielabend "{activeSession.name}" wirklich beenden? 
-                    <br/><br/>
-                    Guthaben und Statistiken bleiben erhalten.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel className="bg-background text-foreground border-border hover:bg-muted">Abbrechen</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => handleEndSession(activeSession.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Beenden</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <FinalizeSessionDialog 
+              session={activeSession} 
+              onFinalize={(balances, cb) => handleFinalizeSession(activeSession.id, balances, cb)} 
+              isPending={finalizeSession.isPending} 
+            />
           </div>
         </header>
 
@@ -249,8 +236,8 @@ export default function Session() {
                   <TableHeader>
                     <TableRow className="border-border hover:bg-transparent">
                       <TableHead className="text-muted-foreground uppercase tracking-wider font-bold">Name</TableHead>
-                      <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold">Guthaben</TableHead>
-                      <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold">Eingekauft</TableHead>
+                      <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold">Jetons</TableHead>
+                      <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold">Eingekauft (Fixum)</TableHead>
                       <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold">Beigetreten</TableHead>
                       <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold">Aktionen</TableHead>
                     </TableRow>
@@ -262,7 +249,7 @@ export default function Session() {
                         <TableRow key={player.sessionPlayerId} className="border-border hover:bg-muted/50 transition-colors">
                           <TableCell className="font-medium text-lg">{player.name}</TableCell>
                           <TableCell className="text-right font-bold text-primary">{formatCurrency(player.chipBalance)}</TableCell>
-                          <TableCell className="text-right text-muted-foreground">{formatCurrency(player.totalBought)}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">{formatCurrency(player.fixumPaid)}</TableCell>
                           <TableCell className="text-right text-muted-foreground">{joinTime}</TableCell>
                           <TableCell className="text-right space-x-2">
                             <BuyChipsDialog 
@@ -436,6 +423,80 @@ function BuyChipsDialog({ player, onBuy, isPending }: { player: any, onBuy: (amo
           <div className="flex justify-end gap-2 pt-4">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)} className="hover:bg-muted">Abbrechen</Button>
             <Button type="submit" disabled={isPending || !amount} className="font-bold uppercase tracking-wider">Kaufen</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function FinalizeSessionDialog({ session, onFinalize, isPending }: { session: any, onFinalize: (balances: { playerId: number; finalBalance: number }[], cb: () => void) => void, isPending: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [balances, setBalances] = useState<Record<number, string>>({});
+
+  // Initialize state when opening
+  React.useEffect(() => {
+    if (open && session?.players) {
+      const initial: Record<number, string> = {};
+      session.players.forEach((p: any) => {
+        initial[p.playerId] = p.chipBalance.toString();
+      });
+      setBalances(initial);
+    }
+  }, [open, session]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const finalBalances = Object.entries(balances).map(([playerId, val]) => {
+      const parsed = parseFloat(val.replace(',', '.'));
+      return {
+        playerId: parseInt(playerId),
+        finalBalance: isNaN(parsed) || parsed < 0 ? 0 : parsed
+      };
+    });
+    
+    onFinalize(finalBalances, () => setOpen(false));
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="destructive" className="font-bold uppercase tracking-wider">Spielabend beenden</Button>
+      </DialogTrigger>
+      <DialogContent className="bg-card border-border sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle className="text-primary uppercase tracking-wider text-xl">Spielabend beenden</DialogTitle>
+          <p className="text-muted-foreground text-sm mt-2">
+            Bitte gib die finalen Jeton-Bestände für jeden Teilnehmer ein.
+          </p>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+          <div className="max-h-[60vh] overflow-y-auto space-y-3 pr-2">
+            {session?.players?.map((p: any) => (
+              <div key={p.playerId} className="flex items-center gap-4">
+                <label className="w-1/3 text-sm font-medium">{p.name}</label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={balances[p.playerId] ?? ""}
+                  onChange={(e) => setBalances(prev => ({ ...prev, [p.playerId]: e.target.value }))}
+                  className="flex-1 border-border bg-background focus-visible:ring-primary"
+                  required
+                />
+              </div>
+            ))}
+            {(!session?.players || session.players.length === 0) && (
+              <div className="text-center text-muted-foreground py-4">
+                Keine Teilnehmer vorhanden.
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-3 pt-4 border-t border-border">
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)} className="hover:bg-muted">Abbrechen</Button>
+            <Button type="submit" disabled={isPending} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground font-bold uppercase tracking-wider">
+              Bestätigen & Beenden
+            </Button>
           </div>
         </form>
       </DialogContent>

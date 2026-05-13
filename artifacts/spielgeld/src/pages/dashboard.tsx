@@ -8,6 +8,7 @@ import {
   useDeletePlayer, 
   useBuyChips,
   useGetActiveSession,
+  useGetPlayerHistory,
   getGetBankQueryKey,
   getGetStatsQueryKey,
   getListPlayersQueryKey
@@ -121,7 +122,7 @@ export default function Dashboard() {
 
         <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-border pb-6">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">Kassa</h1>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">VflBlackJack</h1>
             <p className="text-sm text-muted-foreground mt-1">Spielgeld-Verwaltung</p>
           </div>
           <div className="text-right">
@@ -198,8 +199,8 @@ export default function Dashboard() {
                   <TableHeader>
                     <TableRow className="border-border hover:bg-transparent">
                       <TableHead className="text-muted-foreground uppercase tracking-wider font-bold">Name</TableHead>
-                      <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold">Bestand</TableHead>
-                      <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold">Eingekauft</TableHead>
+                      <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold">Jetons</TableHead>
+                      <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold">Eingekauft (Fixum)</TableHead>
                       <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold">Aktionen</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -208,8 +209,9 @@ export default function Dashboard() {
                       <TableRow key={player.id} className="border-border hover:bg-muted/50 transition-colors">
                         <TableCell className="font-medium text-lg">{player.name}</TableCell>
                         <TableCell className="text-right font-bold text-primary">{formatCurrency(player.chipBalance)}</TableCell>
-                        <TableCell className="text-right text-muted-foreground">{formatCurrency(player.totalBought)}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">{formatCurrency(player.fixumPaid)}</TableCell>
                         <TableCell className="text-right space-x-2">
+                          <PlayerHistoryDialog playerId={player.id} playerName={player.name} formatCurrency={formatCurrency} />
                           <BuyChipsDialog 
                             player={player} 
                             onBuy={(amount, cb) => handleBuyChips(player.id, amount, cb)} 
@@ -305,6 +307,63 @@ function BuyChipsDialog({ player, onBuy, isPending }: { player: any, onBuy: (amo
             <Button type="submit" disabled={isPending || !amount} className="font-bold uppercase tracking-wider">Kaufen</Button>
           </div>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PlayerHistoryDialog({ playerId, playerName, formatCurrency }: { playerId: number, playerName: string, formatCurrency: (val: number) => string }) {
+  const [open, setOpen] = useState(false);
+  const { data: history, isLoading } = useGetPlayerHistory(playerId);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="uppercase text-xs font-bold tracking-wider">Historie</Button>
+      </DialogTrigger>
+      <DialogContent className="bg-card border-border sm:max-w-[600px] max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="text-primary uppercase tracking-wider">{playerName} — Bilanz-Historie</DialogTitle>
+        </DialogHeader>
+        <div className="flex-1 overflow-y-auto mt-4 pr-2">
+          {isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : !history || history.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Noch keine Spielabende abgeschlossen.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border">
+                  <TableHead className="font-bold text-muted-foreground">Spielabend</TableHead>
+                  <TableHead className="text-right font-bold text-muted-foreground">Vorher</TableHead>
+                  <TableHead className="text-right font-bold text-muted-foreground">Nachher</TableHead>
+                  <TableHead className="text-right font-bold text-muted-foreground">Differenz</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {history.map((snapshot) => {
+                  const diffColor = snapshot.difference > 0 ? "text-green-500" : snapshot.difference < 0 ? "text-red-500" : "text-muted-foreground";
+                  const diffPrefix = snapshot.difference > 0 ? "+" : "";
+                  return (
+                    <TableRow key={snapshot.id} className="border-border">
+                      <TableCell>{snapshot.sessionName}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(snapshot.balanceBefore)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(snapshot.balanceAfter)}</TableCell>
+                      <TableCell className={`text-right font-bold ${diffColor}`}>
+                        {diffPrefix}{formatCurrency(snapshot.difference)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

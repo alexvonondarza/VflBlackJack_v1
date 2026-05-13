@@ -3,19 +3,15 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: Spielgeld-Verwaltung API
+  description: VflBlackJack API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
   - name: players
-    description: Player management
   - name: bank
-    description: Bank management
   - name: sessions
-    description: Game session management
 paths:
   /healthz:
     get:
@@ -47,7 +43,7 @@ paths:
     post:
       operationId: createPlayer
       tags: [players]
-      summary: Create a new player (5€ Fixum goes to bank automatically)
+      summary: Create a new player (5€ Registrierungs-Fixum goes to bank)
       requestBody:
         required: true
         content:
@@ -66,7 +62,7 @@ paths:
     delete:
       operationId: deletePlayer
       tags: [players]
-      summary: Delete and cashout a player
+      summary: Delete and cashout a player (chip balance deducted from bank)
       parameters:
         - name: id
           in: path
@@ -107,6 +103,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Player"
+        "404":
+          description: Player not found
+
+  /players/{id}/history:
+    get:
+      operationId: getPlayerHistory
+      tags: [players]
+      summary: Get balance history for a player
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of balance snapshots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BalanceSnapshot"
         "404":
           description: Player not found
 
@@ -206,7 +225,7 @@ paths:
     post:
       operationId: endGameSession
       tags: [sessions]
-      summary: End a game session
+      summary: End a game session without finalizing balances
       parameters:
         - name: id
           in: path
@@ -216,6 +235,33 @@ paths:
       responses:
         "200":
           description: Ended session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameSession"
+        "404":
+          description: Not found
+
+  /game-sessions/{id}/finalize:
+    post:
+      operationId: finalizeGameSession
+      tags: [sessions]
+      summary: Finalize a game session with final chip balances for each player
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FinalizeSessionInput"
+      responses:
+        "200":
+          description: Finalized session
           content:
             application/json:
               schema:
@@ -289,7 +335,7 @@ components:
 
     Player:
       type: object
-      required: [id, name, chipBalance, totalBought, createdAt]
+      required: [id, name, chipBalance, fixumPaid, createdAt]
       properties:
         id:
           type: integer
@@ -297,8 +343,10 @@ components:
           type: string
         chipBalance:
           type: number
-        totalBought:
+          description: Current Jeton value (chip purchases only, excludes fixum)
+        fixumPaid:
           type: number
+          description: Total fixum paid (5€ per session joined + registration)
         createdAt:
           type: string
 
@@ -328,6 +376,25 @@ components:
           type: number
         newBankBalance:
           type: number
+
+    BalanceSnapshot:
+      type: object
+      required: [id, sessionId, sessionName, balanceBefore, balanceAfter, difference, capturedAt]
+      properties:
+        id:
+          type: integer
+        sessionId:
+          type: integer
+        sessionName:
+          type: string
+        balanceBefore:
+          type: number
+        balanceAfter:
+          type: number
+        difference:
+          type: number
+        capturedAt:
+          type: string
 
     Bank:
       type: object
@@ -397,7 +464,7 @@ components:
 
     SessionPlayer:
       type: object
-      required: [sessionPlayerId, playerId, name, chipBalance, totalBought, joinedAt]
+      required: [sessionPlayerId, playerId, name, chipBalance, fixumPaid, joinedAt]
       properties:
         sessionPlayerId:
           type: integer
@@ -407,7 +474,7 @@ components:
           type: string
         chipBalance:
           type: number
-        totalBought:
+        fixumPaid:
           type: number
         joinedAt:
           type: string
@@ -427,3 +494,22 @@ components:
           type: boolean
         revertedAmount:
           type: number
+
+    FinalizeSessionInput:
+      type: object
+      required: [balances]
+      properties:
+        balances:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlayerFinalBalance"
+
+    PlayerFinalBalance:
+      type: object
+      required: [playerId, finalBalance]
+      properties:
+        playerId:
+          type: integer
+        finalBalance:
+          type: number
+          minimum: 0

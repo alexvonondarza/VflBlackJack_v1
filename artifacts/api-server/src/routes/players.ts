@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, sql } from "drizzle-orm";
-import { db, playersTable, bankTable } from "@workspace/db";
+import { db, playersTable, bankTable, balanceSnapshotsTable } from "@workspace/db";
 import {
   CreatePlayerBody,
   DeletePlayerParams,
@@ -10,18 +10,31 @@ import {
 
 const router = Router();
 
+const REGISTRATION_FIXUM = 5;
+
+async function ensureBank() {
+  const rows = await db.select().from(bankTable).limit(1);
+  if (rows.length === 0) {
+    const [row] = await db.insert(bankTable).values({ balance: "0.00" }).returning();
+    return row;
+  }
+  return rows[0];
+}
+
+function mapPlayer(p: typeof playersTable.$inferSelect) {
+  return {
+    id: p.id,
+    name: p.name,
+    chipBalance: Number(p.chipBalance),
+    fixumPaid: Number(p.fixumPaid),
+    createdAt: p.createdAt.toISOString(),
+  };
+}
+
 router.get("/players", async (req, res) => {
   try {
     const players = await db.select().from(playersTable).orderBy(playersTable.createdAt);
-    res.json(
-      players.map((p) => ({
-        id: p.id,
-        name: p.name,
-        chipBalance: Number(p.chipBalance),
-        totalBought: Number(p.totalBought),
-        createdAt: p.createdAt.toISOString(),
-      }))
-    );
+    res.json(players.map(mapPlayer));
   } catch (err) {
     req.log.error({ err }, "Failed to list players");
     res.status(500).json({ error: "Internal server error" });
@@ -36,33 +49,22 @@ router.post("/players", async (req, res) => {
   }
 
   try {
-    const FIXUM = 5;
     const [player] = await db
       .insert(playersTable)
       .values({
         name: parsed.data.name,
-        chipBalance: String(FIXUM),
-        totalBought: String(FIXUM),
+        chipBalance: "0.00",
+        fixumPaid: String(REGISTRATION_FIXUM),
       })
       .returning();
 
-    const bankRows = await db.select().from(bankTable).limit(1);
-    if (bankRows.length === 0) {
-      await db.insert(bankTable).values({ balance: String(FIXUM) });
-    } else {
-      await db
-        .update(bankTable)
-        .set({ balance: sql`${bankTable.balance} + ${FIXUM}`, updatedAt: new Date() })
-        .where(eq(bankTable.id, bankRows[0].id));
-    }
+    const bank = await ensureBank();
+    await db
+      .update(bankTable)
+      .set({ balance: sql`${bankTable.balance} + ${REGISTRATION_FIXUM}`, updatedAt: new Date() })
+      .where(eq(bankTable.id, bank.id));
 
-    res.status(201).json({
-      id: player.id,
-      name: player.name,
-      chipBalance: Number(player.chipBalance),
-      totalBought: Number(player.totalBought),
-      createdAt: player.createdAt.toISOString(),
-    });
+    res.status(201).json(mapPlayer(player));
   } catch (err) {
     req.log.error({ err }, "Failed to create player");
     res.status(500).json({ error: "Internal server error" });
@@ -90,31 +92,23 @@ router.delete("/players/:id", async (req, res) => {
 
     const cashoutAmount = Number(player.chipBalance);
 
-    const bankRows = await db.select().from(bankTable).limit(1);
-    let newBankBalance = 0;
-    if (bankRows.length > 0) {
-      await db
-        .update(bankTable)
-        .set({
-          balance: sql`${bankTable.balance} - ${cashoutAmount}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(bankTable.id, bankRows[0].id));
-      newBankBalance = Number(bankRows[0].balance) - cashoutAmount;
-    }
+    const bank = await ensureBank();
+    await db
+      .update(bankTable)
+      .set({
+        balance: sql`${bankTable.balance} - ${cashoutAmount}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(bankTable.id, bank.id));
 
     await db.delete(playersTable).where(eq(playersTable.id, parsed.data.id));
 
+    const [updatedBank] = await db.select().from(bankTable).where(eq(bankTable.id, bank.id)).limit(1);
+
     res.json({
-      player: {
-        id: player.id,
-        name: player.name,
-        chipBalance: cashoutAmount,
-        totalBought: Number(player.totalBought),
-        createdAt: player.createdAt.toISOString(),
-      },
+      player: mapPlayer(player),
       cashoutAmount,
-      newBankBalance,
+      newBankBalance: Number(updatedBank.balance),
     });
   } catch (err) {
     req.log.error({ err }, "Failed to delete player");
@@ -151,32 +145,56 @@ router.post("/players/:id/buy-chips", async (req, res) => {
 
     const [updated] = await db
       .update(playersTable)
-      .set({
-        chipBalance: sql`${playersTable.chipBalance} + ${amount}`,
-        totalBought: sql`${playersTable.totalBought} + ${amount}`,
-      })
+      .set({ chipBalance: sql`${playersTable.chipBalance} + ${amount}` })
       .where(eq(playersTable.id, paramsParsed.data.id))
       .returning();
 
-    const bankRows = await db.select().from(bankTable).limit(1);
-    if (bankRows.length === 0) {
-      await db.insert(bankTable).values({ balance: String(amount) });
-    } else {
-      await db
-        .update(bankTable)
-        .set({ balance: sql`${bankTable.balance} + ${amount}`, updatedAt: new Date() })
-        .where(eq(bankTable.id, bankRows[0].id));
-    }
+    const bank = await ensureBank();
+    await db
+      .update(bankTable)
+      .set({ balance: sql`${bankTable.balance} + ${amount}`, updatedAt: new Date() })
+      .where(eq(bankTable.id, bank.id));
 
-    res.json({
-      id: updated.id,
-      name: updated.name,
-      chipBalance: Number(updated.chipBalance),
-      totalBought: Number(updated.totalBought),
-      createdAt: updated.createdAt.toISOString(),
-    });
+    res.json(mapPlayer(updated));
   } catch (err) {
     req.log.error({ err }, "Failed to buy chips");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/players/:id/history", async (req, res) => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid player id" });
+    return;
+  }
+
+  try {
+    const [player] = await db.select().from(playersTable).where(eq(playersTable.id, id)).limit(1);
+    if (!player) {
+      res.status(404).json({ error: "Player not found" });
+      return;
+    }
+
+    const snapshots = await db
+      .select()
+      .from(balanceSnapshotsTable)
+      .where(eq(balanceSnapshotsTable.playerId, id))
+      .orderBy(balanceSnapshotsTable.capturedAt);
+
+    res.json(
+      snapshots.map((s) => ({
+        id: s.id,
+        sessionId: s.sessionId,
+        sessionName: s.sessionName,
+        balanceBefore: Number(s.balanceBefore),
+        balanceAfter: Number(s.balanceAfter),
+        difference: Number(s.balanceAfter) - Number(s.balanceBefore),
+        capturedAt: s.capturedAt.toISOString(),
+      }))
+    );
+  } catch (err) {
+    req.log.error({ err }, "Failed to get player history");
     res.status(500).json({ error: "Internal server error" });
   }
 });

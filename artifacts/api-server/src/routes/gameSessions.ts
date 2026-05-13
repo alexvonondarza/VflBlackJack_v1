@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, and, sql } from "drizzle-orm";
-import { db, playersTable, bankTable, gameSessionsTable, gameSessionPlayersTable } from "@workspace/db";
+import { db, playersTable, bankTable, gameSessionsTable, gameSessionPlayersTable, balanceSnapshotsTable } from "@workspace/db";
 
 const router = Router();
 
@@ -13,6 +13,24 @@ async function ensureBank() {
     return row;
   }
   return rows[0];
+}
+
+function mapSessionPlayer(p: {
+  sessionPlayerId: number;
+  joinedAt: Date;
+  playerId: number;
+  name: string;
+  chipBalance: string;
+  fixumPaid: string;
+}) {
+  return {
+    sessionPlayerId: p.sessionPlayerId,
+    playerId: p.playerId,
+    name: p.name,
+    chipBalance: Number(p.chipBalance),
+    fixumPaid: Number(p.fixumPaid),
+    joinedAt: p.joinedAt.toISOString(),
+  };
 }
 
 router.get("/game-sessions", async (req, res) => {
@@ -84,7 +102,7 @@ router.get("/game-sessions/active", async (req, res) => {
         playerId: playersTable.id,
         name: playersTable.name,
         chipBalance: playersTable.chipBalance,
-        totalBought: playersTable.totalBought,
+        fixumPaid: playersTable.fixumPaid,
       })
       .from(gameSessionPlayersTable)
       .innerJoin(playersTable, eq(gameSessionPlayersTable.playerId, playersTable.id))
@@ -96,14 +114,7 @@ router.get("/game-sessions/active", async (req, res) => {
       status: session.status,
       createdAt: session.createdAt.toISOString(),
       endedAt: session.endedAt ? session.endedAt.toISOString() : null,
-      players: sessionPlayers.map((p) => ({
-        sessionPlayerId: p.sessionPlayerId,
-        playerId: p.playerId,
-        name: p.name,
-        chipBalance: Number(p.chipBalance),
-        totalBought: Number(p.totalBought),
-        joinedAt: p.joinedAt.toISOString(),
-      })),
+      players: sessionPlayers.map(mapSessionPlayer),
     });
   } catch (err) {
     req.log.error({ err }, "Failed to get active session");
@@ -113,16 +124,10 @@ router.get("/game-sessions/active", async (req, res) => {
 
 router.get("/game-sessions/:id", async (req, res) => {
   const id = Number(req.params.id);
-  if (isNaN(id)) {
-    res.status(400).json({ error: "Invalid id" });
-    return;
-  }
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
     const [session] = await db.select().from(gameSessionsTable).where(eq(gameSessionsTable.id, id)).limit(1);
-    if (!session) {
-      res.status(404).json({ error: "Session not found" });
-      return;
-    }
+    if (!session) { res.status(404).json({ error: "Session not found" }); return; }
 
     const sessionPlayers = await db
       .select({
@@ -131,7 +136,7 @@ router.get("/game-sessions/:id", async (req, res) => {
         playerId: playersTable.id,
         name: playersTable.name,
         chipBalance: playersTable.chipBalance,
-        totalBought: playersTable.totalBought,
+        fixumPaid: playersTable.fixumPaid,
       })
       .from(gameSessionPlayersTable)
       .innerJoin(playersTable, eq(gameSessionPlayersTable.playerId, playersTable.id))
@@ -143,14 +148,7 @@ router.get("/game-sessions/:id", async (req, res) => {
       status: session.status,
       createdAt: session.createdAt.toISOString(),
       endedAt: session.endedAt ? session.endedAt.toISOString() : null,
-      players: sessionPlayers.map((p) => ({
-        sessionPlayerId: p.sessionPlayerId,
-        playerId: p.playerId,
-        name: p.name,
-        chipBalance: Number(p.chipBalance),
-        totalBought: Number(p.totalBought),
-        joinedAt: p.joinedAt.toISOString(),
-      })),
+      players: sessionPlayers.map(mapSessionPlayer),
     });
   } catch (err) {
     req.log.error({ err }, "Failed to get game session");
@@ -160,16 +158,10 @@ router.get("/game-sessions/:id", async (req, res) => {
 
 router.post("/game-sessions/:id/end", async (req, res) => {
   const id = Number(req.params.id);
-  if (isNaN(id)) {
-    res.status(400).json({ error: "Invalid id" });
-    return;
-  }
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
     const [session] = await db.select().from(gameSessionsTable).where(eq(gameSessionsTable.id, id)).limit(1);
-    if (!session) {
-      res.status(404).json({ error: "Session not found" });
-      return;
-    }
+    if (!session) { res.status(404).json({ error: "Session not found" }); return; }
 
     const players = await db.select().from(gameSessionPlayersTable).where(eq(gameSessionPlayersTable.sessionId, id));
 
@@ -193,6 +185,80 @@ router.post("/game-sessions/:id/end", async (req, res) => {
   }
 });
 
+router.post("/game-sessions/:id/finalize", async (req, res) => {
+  const sessionId = Number(req.params.id);
+  if (isNaN(sessionId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const { balances } = req.body;
+  if (!Array.isArray(balances)) { res.status(400).json({ error: "balances must be an array" }); return; }
+
+  try {
+    const [session] = await db.select().from(gameSessionsTable).where(eq(gameSessionsTable.id, sessionId)).limit(1);
+    if (!session) { res.status(404).json({ error: "Session not found" }); return; }
+
+    // Process each player's final balance
+    for (const entry of balances) {
+      const { playerId, finalBalance } = entry;
+      if (typeof playerId !== "number" || typeof finalBalance !== "number") continue;
+
+      const [player] = await db.select().from(playersTable).where(eq(playersTable.id, playerId)).limit(1);
+      if (!player) continue;
+
+      const balanceBefore = Number(player.chipBalance);
+      const balanceAfter = finalBalance;
+      const diff = balanceAfter - balanceBefore;
+
+      // Update player chip balance
+      await db
+        .update(playersTable)
+        .set({ chipBalance: String(finalBalance) })
+        .where(eq(playersTable.id, playerId));
+
+      // Adjust bank: if player gains chips → bank loses, if player loses chips → bank gains
+      if (diff !== 0) {
+        const bank = await ensureBank();
+        await db
+          .update(bankTable)
+          .set({
+            balance: sql`${bankTable.balance} - ${diff}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(bankTable.id, bank.id));
+      }
+
+      // Save balance snapshot
+      await db.insert(balanceSnapshotsTable).values({
+        playerId,
+        sessionId,
+        sessionName: session.name,
+        balanceBefore: String(balanceBefore),
+        balanceAfter: String(balanceAfter),
+      });
+    }
+
+    // End the session
+    const sessionPlayers = await db.select().from(gameSessionPlayersTable).where(eq(gameSessionPlayersTable.sessionId, sessionId));
+
+    const [updated] = await db
+      .update(gameSessionsTable)
+      .set({ status: "ended", endedAt: new Date() })
+      .where(eq(gameSessionsTable.id, sessionId))
+      .returning();
+
+    res.json({
+      id: updated.id,
+      name: updated.name,
+      status: updated.status,
+      createdAt: updated.createdAt.toISOString(),
+      endedAt: updated.endedAt ? updated.endedAt.toISOString() : null,
+      playerCount: sessionPlayers.length,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to finalize game session");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.post("/game-sessions/:id/players", async (req, res) => {
   const sessionId = Number(req.params.id);
   const { playerId } = req.body;
@@ -204,16 +270,10 @@ router.post("/game-sessions/:id/players", async (req, res) => {
 
   try {
     const [session] = await db.select().from(gameSessionsTable).where(eq(gameSessionsTable.id, sessionId)).limit(1);
-    if (!session) {
-      res.status(404).json({ error: "Session not found" });
-      return;
-    }
+    if (!session) { res.status(404).json({ error: "Session not found" }); return; }
 
     const [player] = await db.select().from(playersTable).where(eq(playersTable.id, Number(playerId))).limit(1);
-    if (!player) {
-      res.status(404).json({ error: "Player not found" });
-      return;
-    }
+    if (!player) { res.status(404).json({ error: "Player not found" }); return; }
 
     const existing = await db
       .select()
@@ -221,23 +281,14 @@ router.post("/game-sessions/:id/players", async (req, res) => {
       .where(and(eq(gameSessionPlayersTable.sessionId, sessionId), eq(gameSessionPlayersTable.playerId, Number(playerId))))
       .limit(1);
 
-    if (existing.length > 0) {
-      res.status(409).json({ error: "Player already in session" });
-      return;
-    }
+    if (existing.length > 0) { res.status(409).json({ error: "Player already in session" }); return; }
 
-    const [sp] = await db
-      .insert(gameSessionPlayersTable)
-      .values({ sessionId, playerId: Number(playerId) })
-      .returning();
+    const [sp] = await db.insert(gameSessionPlayersTable).values({ sessionId, playerId: Number(playerId) }).returning();
 
-    // Apply 5€ Fixum
+    // Apply 5€ Fixum: only adds to fixumPaid (not chipBalance)
     const [updatedPlayer] = await db
       .update(playersTable)
-      .set({
-        chipBalance: sql`${playersTable.chipBalance} + ${FIXUM}`,
-        totalBought: sql`${playersTable.totalBought} + ${FIXUM}`,
-      })
+      .set({ fixumPaid: sql`${playersTable.fixumPaid} + ${FIXUM}` })
       .where(eq(playersTable.id, Number(playerId)))
       .returning();
 
@@ -247,14 +298,14 @@ router.post("/game-sessions/:id/players", async (req, res) => {
       .set({ balance: sql`${bankTable.balance} + ${FIXUM}`, updatedAt: new Date() })
       .where(eq(bankTable.id, bank.id));
 
-    res.status(201).json({
+    res.status(201).json(mapSessionPlayer({
       sessionPlayerId: sp.id,
+      joinedAt: sp.joinedAt,
       playerId: updatedPlayer.id,
       name: updatedPlayer.name,
-      chipBalance: Number(updatedPlayer.chipBalance),
-      totalBought: Number(updatedPlayer.totalBought),
-      joinedAt: sp.joinedAt.toISOString(),
-    });
+      chipBalance: updatedPlayer.chipBalance,
+      fixumPaid: updatedPlayer.fixumPaid,
+    }));
   } catch (err) {
     req.log.error({ err }, "Failed to add player to session");
     res.status(500).json({ error: "Internal server error" });
@@ -265,10 +316,7 @@ router.delete("/game-sessions/:id/players/:playerId", async (req, res) => {
   const sessionId = Number(req.params.id);
   const playerId = Number(req.params.playerId);
 
-  if (isNaN(sessionId) || isNaN(playerId)) {
-    res.status(400).json({ error: "Invalid ids" });
-    return;
-  }
+  if (isNaN(sessionId) || isNaN(playerId)) { res.status(400).json({ error: "Invalid ids" }); return; }
 
   try {
     const [sp] = await db
@@ -277,20 +325,14 @@ router.delete("/game-sessions/:id/players/:playerId", async (req, res) => {
       .where(and(eq(gameSessionPlayersTable.sessionId, sessionId), eq(gameSessionPlayersTable.playerId, playerId)))
       .limit(1);
 
-    if (!sp) {
-      res.status(404).json({ error: "Player not in session" });
-      return;
-    }
+    if (!sp) { res.status(404).json({ error: "Player not in session" }); return; }
 
     await db.delete(gameSessionPlayersTable).where(eq(gameSessionPlayersTable.id, sp.id));
 
     // Revert 5€ Fixum
     await db
       .update(playersTable)
-      .set({
-        chipBalance: sql`GREATEST(${playersTable.chipBalance} - ${FIXUM}, 0)`,
-        totalBought: sql`GREATEST(${playersTable.totalBought} - ${FIXUM}, 0)`,
-      })
+      .set({ fixumPaid: sql`GREATEST(${playersTable.fixumPaid} - ${FIXUM}, 0)` })
       .where(eq(playersTable.id, playerId));
 
     const bank = await ensureBank();
