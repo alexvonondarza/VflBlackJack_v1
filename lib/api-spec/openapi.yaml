@@ -14,13 +14,14 @@ tags:
     description: Player management
   - name: bank
     description: Bank management
+  - name: sessions
+    description: Game session management
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -65,7 +66,7 @@ paths:
     delete:
       operationId: deletePlayer
       tags: [players]
-      summary: Delete and cashout a player (chip balance deducted from bank)
+      summary: Delete and cashout a player
       parameters:
         - name: id
           in: path
@@ -86,7 +87,7 @@ paths:
     post:
       operationId: buyChips
       tags: [players]
-      summary: Player buys additional chips (amount added to bank and player balance)
+      summary: Player buys additional chips
       parameters:
         - name: id
           in: path
@@ -135,6 +136,148 @@ paths:
               schema:
                 $ref: "#/components/schemas/Stats"
 
+  /game-sessions:
+    get:
+      operationId: listGameSessions
+      tags: [sessions]
+      summary: List all game sessions
+      responses:
+        "200":
+          description: List of game sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GameSession"
+    post:
+      operationId: createGameSession
+      tags: [sessions]
+      summary: Create a new game session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GameSessionInput"
+      responses:
+        "201":
+          description: Created game session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameSession"
+
+  /game-sessions/active:
+    get:
+      operationId: getActiveSession
+      tags: [sessions]
+      summary: Get the currently active game session with its players
+      responses:
+        "200":
+          description: Active session or null
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameSessionDetail"
+
+  /game-sessions/{id}:
+    get:
+      operationId: getGameSession
+      tags: [sessions]
+      summary: Get a game session with its players
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Game session detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameSessionDetail"
+        "404":
+          description: Not found
+
+  /game-sessions/{id}/end:
+    post:
+      operationId: endGameSession
+      tags: [sessions]
+      summary: End a game session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Ended session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameSession"
+        "404":
+          description: Not found
+
+  /game-sessions/{id}/players:
+    post:
+      operationId: addPlayerToSession
+      tags: [sessions]
+      summary: Add a player to a game session (5€ Fixum applied)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddPlayerToSessionInput"
+      responses:
+        "201":
+          description: Player added to session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionPlayer"
+        "404":
+          description: Not found
+        "409":
+          description: Player already in session
+
+  /game-sessions/{id}/players/{playerId}:
+    delete:
+      operationId: removePlayerFromSession
+      tags: [sessions]
+      summary: Remove a player from a game session (reverts Fixum)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: playerId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Player removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RemovePlayerResult"
+        "404":
+          description: Not found
+
 components:
   schemas:
     HealthStatus:
@@ -142,8 +285,7 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
     Player:
       type: object
@@ -155,10 +297,8 @@ components:
           type: string
         chipBalance:
           type: number
-          description: Current chip value in euros
         totalBought:
           type: number
-          description: Total euros spent buying chips (including initial 5€)
         createdAt:
           type: string
 
@@ -177,7 +317,6 @@ components:
         amount:
           type: number
           minimum: 0.01
-          description: Amount in euros to buy
 
     CashoutResult:
       type: object
@@ -187,7 +326,6 @@ components:
           $ref: "#/components/schemas/Player"
         cashoutAmount:
           type: number
-          description: Amount paid out to player
         newBankBalance:
           type: number
 
@@ -197,7 +335,6 @@ components:
       properties:
         balance:
           type: number
-          description: Current bank balance in euros
 
     Stats:
       type: object
@@ -209,4 +346,84 @@ components:
           type: integer
         totalChipsInPlay:
           type: number
-          description: Sum of all player chip balances
+
+    GameSession:
+      type: object
+      required: [id, name, status, createdAt, playerCount]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, ended]
+        createdAt:
+          type: string
+        endedAt:
+          type: string
+          nullable: true
+        playerCount:
+          type: integer
+
+    GameSessionInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+
+    GameSessionDetail:
+      type: object
+      required: [id, name, status, createdAt, players]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, ended]
+        createdAt:
+          type: string
+        endedAt:
+          type: string
+          nullable: true
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/SessionPlayer"
+
+    SessionPlayer:
+      type: object
+      required: [sessionPlayerId, playerId, name, chipBalance, totalBought, joinedAt]
+      properties:
+        sessionPlayerId:
+          type: integer
+        playerId:
+          type: integer
+        name:
+          type: string
+        chipBalance:
+          type: number
+        totalBought:
+          type: number
+        joinedAt:
+          type: string
+
+    AddPlayerToSessionInput:
+      type: object
+      required: [playerId]
+      properties:
+        playerId:
+          type: integer
+
+    RemovePlayerResult:
+      type: object
+      required: [success, revertedAmount]
+      properties:
+        success:
+          type: boolean
+        revertedAmount:
+          type: number
