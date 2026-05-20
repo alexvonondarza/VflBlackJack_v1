@@ -17,6 +17,9 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
+if (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) {
+  setBaseUrl(import.meta.env.VITE_API_URL);
+}
 
 /**
  * Set a base URL that is prepended to every relative request URL
