@@ -200,6 +200,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/GameSessionDetail"
 
+  /game-sessions/{id}/history:
+    get:
+      operationId: getGameSessionHistory
+      tags: [sessions]
+      summary: Get the full history of an ended game session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Session history with player snapshots and bank diff
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionHistory"
+        "404":
+          description: Not found
+
   /game-sessions/{id}:
     get:
       operationId: getGameSession
@@ -513,3 +534,48 @@ components:
         finalBalance:
           type: number
           minimum: 0
+
+    SessionPlayerSnapshot:
+      type: object
+      required: [playerId, playerName, balanceBefore, balanceAfter, diff]
+      properties:
+        playerId:
+          type: integer
+        playerName:
+          type: string
+        balanceBefore:
+          type: number
+        balanceAfter:
+          type: number
+        diff:
+          type: number
+
+    SessionHistory:
+      type: object
+      required: [id, name, status, createdAt, players]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, ended]
+        createdAt:
+          type: string
+        endedAt:
+          type: string
+          nullable: true
+        bankBalanceBefore:
+          type: number
+          nullable: true
+        bankBalanceAfter:
+          type: number
+          nullable: true
+        bankDiff:
+          type: number
+          nullable: true
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/SessionPlayerSnapshot"

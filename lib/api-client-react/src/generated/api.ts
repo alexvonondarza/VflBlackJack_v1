@@ -30,6 +30,7 @@ import type {
   Player,
   PlayerInput,
   RemovePlayerResult,
+  SessionHistory,
   SessionPlayer,
   Stats,
 } from "./api.schemas";
@@ -893,6 +894,94 @@ export function useGetActiveSession<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetActiveSessionQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get the full history of an ended game session
+ */
+export const getGetGameSessionHistoryUrl = (id: number) => {
+  return `/api/game-sessions/${id}/history`;
+};
+
+export const getGameSessionHistory = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SessionHistory> => {
+  return customFetch<SessionHistory>(getGetGameSessionHistoryUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetGameSessionHistoryQueryKey = (id: number) => {
+  return [`/api/game-sessions/${id}/history`] as const;
+};
+
+export const getGetGameSessionHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGameSessionHistory>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGameSessionHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetGameSessionHistoryQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getGameSessionHistory>>
+  > = ({ signal }) => getGameSessionHistory(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGameSessionHistory>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetGameSessionHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGameSessionHistory>>
+>;
+export type GetGameSessionHistoryQueryError = ErrorType<void>;
+
+/**
+ * @summary Get the full history of an ended game session
+ */
+
+export function useGetGameSessionHistory<
+  TData = Awaited<ReturnType<typeof getGameSessionHistory>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGameSessionHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetGameSessionHistoryQueryOptions(id, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

@@ -163,6 +163,33 @@ export const GetActiveSessionResponse = zod.object({
 });
 
 /**
+ * @summary Get the full history of an ended game session
+ */
+export const GetGameSessionHistoryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetGameSessionHistoryResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  status: zod.enum(["active", "ended"]),
+  createdAt: zod.string(),
+  endedAt: zod.string().nullish(),
+  bankBalanceBefore: zod.number().nullish(),
+  bankBalanceAfter: zod.number().nullish(),
+  bankDiff: zod.number().nullish(),
+  players: zod.array(
+    zod.object({
+      playerId: zod.number(),
+      playerName: zod.string(),
+      balanceBefore: zod.number(),
+      balanceAfter: zod.number(),
+      diff: zod.number(),
+    }),
+  ),
+});
+
+/**
  * @summary Get a game session with its players
  */
 export const GetGameSessionParams = zod.object({

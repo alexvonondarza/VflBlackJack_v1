@@ -63,9 +63,12 @@ router.post("/game-sessions", async (req, res) => {
     return;
   }
   try {
+    const bank = await ensureBank();
+    const bankBalanceBefore = Number(bank.balance);
+
     const [session] = await db
       .insert(gameSessionsTable)
-      .values({ name: name.trim(), status: "active" })
+      .values({ name: name.trim(), status: "active", bankBalanceBefore: String(bankBalanceBefore) })
       .returning();
     res.status(201).json({
       id: session.id,
@@ -156,6 +159,44 @@ router.get("/game-sessions/:id", async (req, res) => {
   }
 });
 
+router.get("/game-sessions/:id/history", async (req, res) => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const [session] = await db.select().from(gameSessionsTable).where(eq(gameSessionsTable.id, id)).limit(1);
+    if (!session) { res.status(404).json({ error: "Session not found" }); return; }
+
+    const snapshots = await db
+      .select()
+      .from(balanceSnapshotsTable)
+      .where(eq(balanceSnapshotsTable.sessionId, id));
+
+    const bankBefore = session.bankBalanceBefore ? Number(session.bankBalanceBefore) : null;
+    const bankAfter = session.bankBalanceAfter ? Number(session.bankBalanceAfter) : null;
+
+    res.json({
+      id: session.id,
+      name: session.name,
+      status: session.status,
+      createdAt: session.createdAt.toISOString(),
+      endedAt: session.endedAt ? session.endedAt.toISOString() : null,
+      bankBalanceBefore: bankBefore,
+      bankBalanceAfter: bankAfter,
+      bankDiff: bankBefore !== null && bankAfter !== null ? bankAfter - bankBefore : null,
+      players: snapshots.map(s => ({
+        playerId: s.playerId,
+        playerName: s.playerName,
+        balanceBefore: Number(s.balanceBefore),
+        balanceAfter: Number(s.balanceAfter),
+        diff: Number(s.balanceAfter) - Number(s.balanceBefore),
+      })),
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to get session history");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.post("/game-sessions/:id/end", async (req, res) => {
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -165,9 +206,10 @@ router.post("/game-sessions/:id/end", async (req, res) => {
 
     const players = await db.select().from(gameSessionPlayersTable).where(eq(gameSessionPlayersTable.sessionId, id));
 
+    const bank = await ensureBank();
     const [updated] = await db
       .update(gameSessionsTable)
-      .set({ status: "ended", endedAt: new Date() })
+      .set({ status: "ended", endedAt: new Date(), bankBalanceAfter: String(Number(bank.balance)) })
       .where(eq(gameSessionsTable.id, id))
       .returning();
 
@@ -213,9 +255,10 @@ router.post("/game-sessions/:id/finalize", async (req, res) => {
         .set({ chipBalance: String(finalBalance) })
         .where(eq(playersTable.id, playerId));
 
-      // Save balance snapshot
+      // Save balance snapshot (including playerName for historical record)
       await db.insert(balanceSnapshotsTable).values({
         playerId,
+        playerName: player.name,
         sessionId,
         sessionName: session.name,
         balanceBefore: String(balanceBefore),
@@ -223,12 +266,16 @@ router.post("/game-sessions/:id/finalize", async (req, res) => {
       });
     }
 
+    // Capture bank balance after finalization
+    const bank = await ensureBank();
+    const bankBalanceAfter = Number(bank.balance);
+
     // End the session
     const sessionPlayers = await db.select().from(gameSessionPlayersTable).where(eq(gameSessionPlayersTable.sessionId, sessionId));
 
     const [updated] = await db
       .update(gameSessionsTable)
-      .set({ status: "ended", endedAt: new Date() })
+      .set({ status: "ended", endedAt: new Date(), bankBalanceAfter: String(bankBalanceAfter) })
       .where(eq(gameSessionsTable.id, sessionId))
       .returning();
 
@@ -303,29 +350,32 @@ router.delete("/game-sessions/:id/players/:playerId", async (req, res) => {
   const sessionId = Number(req.params.id);
   const playerId = Number(req.params.playerId);
 
-  if (isNaN(sessionId) || isNaN(playerId)) { res.status(400).json({ error: "Invalid ids" }); return; }
+  if (isNaN(sessionId) || isNaN(playerId)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
 
   try {
-    const [sp] = await db
-      .select()
-      .from(gameSessionPlayersTable)
-      .where(and(eq(gameSessionPlayersTable.sessionId, sessionId), eq(gameSessionPlayersTable.playerId, playerId)))
-      .limit(1);
+    const [session] = await db.select().from(gameSessionsTable).where(eq(gameSessionsTable.id, sessionId)).limit(1);
+    if (!session) { res.status(404).json({ error: "Session not found" }); return; }
 
-    if (!sp) { res.status(404).json({ error: "Player not in session" }); return; }
+    const [player] = await db.select().from(playersTable).where(eq(playersTable.id, playerId)).limit(1);
+    if (!player) { res.status(404).json({ error: "Player not found" }); return; }
 
-    await db.delete(gameSessionPlayersTable).where(eq(gameSessionPlayersTable.id, sp.id));
+    await db
+      .delete(gameSessionPlayersTable)
+      .where(and(eq(gameSessionPlayersTable.sessionId, sessionId), eq(gameSessionPlayersTable.playerId, playerId)));
 
     // Revert 5€ Fixum
     await db
       .update(playersTable)
-      .set({ fixumPaid: sql`GREATEST(${playersTable.fixumPaid} - ${FIXUM}, 0)` })
+      .set({ fixumPaid: sql`${playersTable.fixumPaid} - ${FIXUM}` })
       .where(eq(playersTable.id, playerId));
 
     const bank = await ensureBank();
     await db
       .update(bankTable)
-      .set({ balance: sql`GREATEST(${bankTable.balance} - ${FIXUM}, 0)`, updatedAt: new Date() })
+      .set({ balance: sql`${bankTable.balance} - ${FIXUM}`, updatedAt: new Date() })
       .where(eq(bankTable.id, bank.id));
 
     res.json({ success: true, revertedAmount: FIXUM });

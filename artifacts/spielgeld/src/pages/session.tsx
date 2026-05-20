@@ -9,6 +9,7 @@ import {
   useListPlayers,
   useGetBank,
   useBuyChips,
+  useGetGameSessionHistory,
   getGetActiveSessionQueryKey,
   getListGameSessionsQueryKey,
   getListPlayersQueryKey,
@@ -328,40 +329,21 @@ export default function Session() {
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-4">
-          <Card className="border-border bg-card">
-            <CardContent className="pt-6">
-              {!pastSessions || pastSessions.filter(s => s.status === 'ended').length === 0 ? (
-                <div className="text-center py-6 text-muted-foreground">
-                  Keine vergangenen Spielabende gefunden.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="border-border hover:bg-transparent">
-                        <TableHead className="text-muted-foreground uppercase tracking-wider font-bold">Name</TableHead>
-                        <TableHead className="text-muted-foreground uppercase tracking-wider font-bold">Datum</TableHead>
-                        <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold">Spieler</TableHead>
-                        <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold">Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {pastSessions.filter(s => s.status === 'ended').map((session) => (
-                        <TableRow key={session.id} className="border-border hover:bg-muted/50 transition-colors">
-                          <TableCell className="font-medium text-lg">{session.name}</TableCell>
-                          <TableCell className="text-muted-foreground">{new Date(session.createdAt).toLocaleDateString('de-DE')}</TableCell>
-                          <TableCell className="text-right font-bold text-primary">{session.playerCount}</TableCell>
-                          <TableCell className="text-right">
-                            <Badge variant="outline" className="border-border text-muted-foreground uppercase">Beendet</Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <div className="space-y-3">
+            {!pastSessions || pastSessions.filter(s => s.status === 'ended').length === 0 ? (
+              <Card className="border-border bg-card">
+                <CardContent className="pt-6">
+                  <div className="text-center py-6 text-muted-foreground">
+                    Keine vergangenen Spielabende gefunden.
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              [...pastSessions.filter(s => s.status === 'ended')].reverse().map((session) => (
+                <SessionHistoryCard key={session.id} session={session} formatCurrency={formatCurrency} />
+              ))
+            )}
+          </div>
         </CollapsibleContent>
       </Collapsible>
 
@@ -501,5 +483,116 @@ function FinalizeSessionDialog({ session, onFinalize, isPending }: { session: an
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SessionHistoryCard({ session, formatCurrency }: { session: { id: number; name: string; createdAt: string; endedAt?: string | null; playerCount: number }; formatCurrency: (v: number) => string }) {
+  const [open, setOpen] = useState(false);
+  const { data: history, isLoading } = useGetGameSessionHistory(session.id, { query: { enabled: open } });
+
+  const dateStr = new Date(session.createdAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const endStr = session.endedAt ? new Date(session.endedAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : null;
+
+  const sortedPlayers = history?.players ? [...history.players].sort((a, b) => b.diff - a.diff) : [];
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger className="w-full">
+        <Card className="border-border bg-card hover:bg-muted/30 transition-colors cursor-pointer">
+          <CardContent className="py-4 px-5">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="text-left min-w-0">
+                  <div className="font-bold text-base truncate">{session.name}</div>
+                  <div className="text-muted-foreground text-xs">{dateStr}{endStr ? ` — ${endStr} Uhr` : ""}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 shrink-0">
+                <span className="text-muted-foreground text-sm">{session.playerCount} Spieler</span>
+                <Badge variant="outline" className="border-border text-muted-foreground uppercase text-xs">Beendet</Badge>
+                <span className="text-muted-foreground text-xs uppercase tracking-wider">{open ? "Schließen" : "Details"}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <Card className="border-border border-t-0 rounded-t-none bg-card/50">
+          <CardContent className="pt-5 pb-5 px-5">
+            {isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-3/4" />
+              </div>
+            ) : !history ? (
+              <div className="text-center text-muted-foreground py-4">Keine Daten verfügbar.</div>
+            ) : (
+              <div className="space-y-6">
+                {/* Player results */}
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Ergebnisse der Spieler</h3>
+                  {sortedPlayers.length === 0 ? (
+                    <div className="text-muted-foreground text-sm">Keine Spielerdaten aufgezeichnet.</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="border-border hover:bg-transparent">
+                            <TableHead className="text-muted-foreground uppercase tracking-wider font-bold text-xs pl-0">Spieler</TableHead>
+                            <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold text-xs">Vorher</TableHead>
+                            <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold text-xs">Nachher</TableHead>
+                            <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold text-xs pr-0">Gewinn/Verlust</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {sortedPlayers.map((p) => (
+                            <TableRow key={p.playerId} className="border-border hover:bg-muted/30 transition-colors">
+                              <TableCell className="font-medium pl-0">{p.playerName}</TableCell>
+                              <TableCell className="text-right text-muted-foreground">{formatCurrency(p.balanceBefore)}</TableCell>
+                              <TableCell className="text-right font-bold">{formatCurrency(p.balanceAfter)}</TableCell>
+                              <TableCell className="text-right pr-0">
+                                <span className={`font-bold text-base ${p.diff > 0 ? 'text-green-400' : p.diff < 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
+                                  {p.diff > 0 ? '+' : ''}{formatCurrency(p.diff)}
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+
+                {/* Bank result */}
+                <div className="border-t border-border pt-4">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Bank</h3>
+                  {history.bankBalanceBefore !== null && history.bankBalanceBefore !== undefined && history.bankBalanceAfter !== null && history.bankBalanceAfter !== undefined ? (
+                    <div className="flex items-center justify-between bg-muted/30 rounded-md px-4 py-3">
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground">
+                          Bankbestand zu Beginn: <span className="text-foreground font-medium">{formatCurrency(history.bankBalanceBefore)}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Bankbestand am Ende: <span className="text-foreground font-medium">{formatCurrency(history.bankBalanceAfter)}</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Bank Ergebnis</div>
+                        <span className={`font-bold text-xl ${(history.bankDiff ?? 0) > 0 ? 'text-green-400' : (history.bankDiff ?? 0) < 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
+                          {(history.bankDiff ?? 0) > 0 ? '+' : ''}{formatCurrency(history.bankDiff ?? 0)}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-muted-foreground text-sm">Bankdaten nicht verfügbar (älterer Spielabend).</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }

@@ -121,3 +121,31 @@ export interface PlayerFinalBalance {
 export interface FinalizeSessionInput {
   balances: PlayerFinalBalance[];
 }
+
+export interface SessionPlayerSnapshot {
+  playerId: number;
+  playerName: string;
+  balanceBefore: number;
+  balanceAfter: number;
+  diff: number;
+}
+
+export type SessionHistoryStatus =
+  (typeof SessionHistoryStatus)[keyof typeof SessionHistoryStatus];
+
+export const SessionHistoryStatus = {
+  active: "active",
+  ended: "ended",
+} as const;
+
+export interface SessionHistory {
+  id: number;
+  name: string;
+  status: SessionHistoryStatus;
+  createdAt: string;
+  endedAt?: string | null;
+  bankBalanceBefore?: number | null;
+  bankBalanceAfter?: number | null;
+  bankDiff?: number | null;
+  players: SessionPlayerSnapshot[];
+}

@@ -5,6 +5,7 @@ import { gameSessionsTable } from "./gameSessions.js";
 export const balanceSnapshotsTable = pgTable("balance_snapshots", {
   id: serial("id").primaryKey(),
   playerId: integer("player_id").notNull().references(() => playersTable.id, { onDelete: "cascade" }),
+  playerName: text("player_name").notNull().default(""),
   sessionId: integer("session_id").notNull().references(() => gameSessionsTable.id, { onDelete: "cascade" }),
   sessionName: text("session_name").notNull(),
   balanceBefore: numeric("balance_before", { precision: 10, scale: 2 }).notNull(),

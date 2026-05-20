@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, numeric } from "drizzle-orm/pg-core";
 import { playersTable } from "./players.js";
 
 export const gameSessionsTable = pgTable("game_sessions", {
@@ -7,6 +7,8 @@ export const gameSessionsTable = pgTable("game_sessions", {
   status: text("status", { enum: ["active", "ended"] }).notNull().default("active"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   endedAt: timestamp("ended_at"),
+  bankBalanceBefore: numeric("bank_balance_before", { precision: 10, scale: 2 }),
+  bankBalanceAfter: numeric("bank_balance_after", { precision: 10, scale: 2 }),
 });
 
 export const gameSessionPlayersTable = pgTable("game_session_players", {
