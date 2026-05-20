@@ -9,6 +9,7 @@ import {
   useListPlayers,
   useGetBank,
   useBuyChips,
+  useCreatePlayer,
   useGetGameSessionHistory,
   getGetActiveSessionQueryKey,
   getListGameSessionsQueryKey,
@@ -43,6 +44,7 @@ export default function Session() {
   const addPlayer = useAddPlayerToSession();
   const removePlayer = useRemovePlayerFromSession();
   const buyChips = useBuyChips();
+  const createPlayer = useCreatePlayer();
 
   const [newSessionName, setNewSessionName] = useState("");
 
@@ -103,6 +105,32 @@ export default function Session() {
         },
         onError: () => {
           toast({ title: "Fehler", description: "Spieler konnte nicht hinzugefügt werden.", variant: "destructive" });
+        }
+      }
+    );
+  };
+
+  const handleCreateAndAddPlayer = (sessionId: number, name: string, cb: () => void) => {
+    createPlayer.mutate(
+      { data: { name } },
+      {
+        onSuccess: (newPlayer) => {
+          addPlayer.mutate(
+            { id: sessionId, data: { playerId: newPlayer.id } },
+            {
+              onSuccess: () => {
+                toast({ title: `${name} angelegt & hinzugefügt`, description: "5,00 € Registrierung + 5,00 € Fixum." });
+                invalidateAll();
+                cb();
+              },
+              onError: () => {
+                toast({ title: "Fehler", description: "Spieler konnte nicht hinzugefügt werden.", variant: "destructive" });
+              }
+            }
+          );
+        },
+        onError: () => {
+          toast({ title: "Fehler", description: "Spieler konnte nicht angelegt werden.", variant: "destructive" });
         }
       }
     );
@@ -200,24 +228,30 @@ export default function Session() {
             <CardHeader>
               <CardTitle className="text-lg text-primary uppercase tracking-wider">Spieler hinzufügen</CardTitle>
             </CardHeader>
-            <CardContent>
-              {availablePlayers.length === 0 ? (
-                <div className="text-muted-foreground text-center py-4">Keine weiteren Spieler verfügbar.</div>
-              ) : (
-                <div className="flex gap-2 overflow-x-auto pb-2">
-                  {availablePlayers.map(p => (
-                    <Button 
-                      key={p.id} 
-                      variant="outline" 
-                      className="border-border hover:bg-muted whitespace-nowrap"
-                      onClick={() => handleAddPlayer(activeSession.id, p.id, p.name)}
-                      disabled={addPlayer.isPending}
-                    >
-                      + {p.name}
-                    </Button>
-                  ))}
-                </div>
-              )}
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                {availablePlayers.map(p => (
+                  <Button
+                    key={p.id}
+                    variant="outline"
+                    className="border-border hover:bg-muted whitespace-nowrap"
+                    onClick={() => handleAddPlayer(activeSession.id, p.id, p.name)}
+                    disabled={addPlayer.isPending}
+                  >
+                    + {p.name}
+                  </Button>
+                ))}
+                {availablePlayers.length === 0 && (
+                  <p className="text-muted-foreground text-sm py-1">Alle bekannten Spieler sind bereits dabei.</p>
+                )}
+              </div>
+              <div className="border-t border-border pt-3">
+                <NewPlayerInSessionDialog
+                  sessionId={activeSession.id}
+                  onCreate={(name, cb) => handleCreateAndAddPlayer(activeSession.id, name, cb)}
+                  isPending={createPlayer.isPending || addPlayer.isPending}
+                />
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -478,6 +512,57 @@ function FinalizeSessionDialog({ session, onFinalize, isPending }: { session: an
             <Button type="button" variant="ghost" onClick={() => setOpen(false)} className="hover:bg-muted">Abbrechen</Button>
             <Button type="submit" disabled={isPending} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground font-bold uppercase tracking-wider">
               Bestätigen & Beenden
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function NewPlayerInSessionDialog({ sessionId, onCreate, isPending }: { sessionId: number; onCreate: (name: string, cb: () => void) => void; isPending: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onCreate(name.trim(), () => {
+      setOpen(false);
+      setName("");
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="default" className="font-bold uppercase tracking-wider text-xs">
+          + Neuen Spieler anlegen & hinzufügen
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="bg-card border-border sm:max-w-[400px]">
+        <DialogHeader>
+          <DialogTitle className="text-primary uppercase tracking-wider">Neuen Spieler anlegen</DialogTitle>
+          <p className="text-muted-foreground text-sm mt-1">
+            Der Spieler wird angelegt (5,00 € Registrierung) und direkt dem Spielabend hinzugefügt (5,00 € Fixum).
+          </p>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+          <div className="space-y-2">
+            <label htmlFor="new-player-name" className="text-sm text-muted-foreground uppercase tracking-wider">Name</label>
+            <Input
+              id="new-player-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Spielername"
+              className="border-border bg-background focus-visible:ring-primary text-lg"
+              autoFocus
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)} className="hover:bg-muted">Abbrechen</Button>
+            <Button type="submit" disabled={isPending || !name.trim()} className="font-bold uppercase tracking-wider">
+              Anlegen & Hinzufügen
             </Button>
           </div>
         </form>
