@@ -227,7 +227,9 @@ export default function Dashboard() {
                                 <AlertDialogDescription className="text-muted-foreground">
                                   Soll {player.name} wirklich ausgezahlt und gelöscht werden? 
                                   <br/><br/>
-                                  Auszahlungsbetrag: <strong className="text-foreground text-lg">{formatCurrency(player.chipBalance)}</strong>
+                                  Auszahlungsbetrag: <strong className="text-foreground text-lg">{formatCurrency(player.chipBalance + player.fixumPaid)}</strong>
+                                  <br/>
+                                  <span className="text-xs text-muted-foreground">({formatCurrency(player.chipBalance)} Jetons + {formatCurrency(player.fixumPaid)} Fixum)</span>
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
