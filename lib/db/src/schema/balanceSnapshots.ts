@@ -1,6 +1,6 @@
 import { pgTable, serial, integer, numeric, text, timestamp } from "drizzle-orm/pg-core";
-import { playersTable } from "./players";
-import { gameSessionsTable } from "./gameSessions";
+import { playersTable } from "./players.js";
+import { gameSessionsTable } from "./gameSessions.js";
 
 export const balanceSnapshotsTable = pgTable("balance_snapshots", {
   id: serial("id").primaryKey(),
