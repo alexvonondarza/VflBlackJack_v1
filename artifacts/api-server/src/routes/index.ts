@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import healthRouter from "./healthz.js";
+import healthRouter from "./health.js";
 import playersRouter from "./players.js";
 import bankRouter from "./bank.js";
 import gameSessionsRouter from "./gameSessions.js";
