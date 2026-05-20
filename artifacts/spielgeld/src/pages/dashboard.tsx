@@ -4,15 +4,18 @@ import {
   useGetBank, 
   useGetStats, 
   useListPlayers, 
+  useListGameSessions,
   useCreatePlayer, 
   useDeletePlayer, 
   useBuyChips,
   useGetActiveSession,
   useGetPlayerHistory,
+  getGameSessionHistory,
   getGetBankQueryKey,
   getGetStatsQueryKey,
   getListPlayersQueryKey
 } from "@workspace/api-client-react";
+import { generatePdf } from "@/lib/exportPdf";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
@@ -33,12 +36,73 @@ export default function Dashboard() {
   const { data: stats, isLoading: isStatsLoading } = useGetStats();
   const { data: players, isLoading: isPlayersLoading } = useListPlayers();
   const { data: activeSession } = useGetActiveSession();
+  const { data: gameSessions } = useListGameSessions();
   
   const createPlayer = useCreatePlayer();
   const deletePlayer = useDeletePlayer();
   const buyChips = useBuyChips();
 
   const [newPlayerName, setNewPlayerName] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportPdf = async () => {
+    setIsExporting(true);
+    try {
+      const endedSessions = (gameSessions ?? []).filter((s) => s.status === "ended");
+      const sessionsWithHistory = await Promise.all(
+        endedSessions.map(async (s) => {
+          try {
+            const history = await getGameSessionHistory(s.id);
+            return {
+              name: s.name,
+              createdAt: s.createdAt,
+              endedAt: s.endedAt,
+              bankBalanceBefore: history.bankBalanceBefore ?? null,
+              bankBalanceAfter: history.bankBalanceAfter ?? null,
+              bankDiff:
+                history.bankBalanceBefore != null && history.bankBalanceAfter != null
+                  ? history.bankBalanceAfter - history.bankBalanceBefore
+                  : null,
+              players: (history.players ?? []).map((p) => ({
+                playerName: p.playerName,
+                balanceBefore: p.balanceBefore,
+                balanceAfter: p.balanceAfter,
+                diff: p.diff,
+              })),
+            };
+          } catch {
+            return {
+              name: s.name,
+              createdAt: s.createdAt,
+              endedAt: s.endedAt,
+              bankBalanceBefore: null,
+              bankBalanceAfter: null,
+              bankDiff: null,
+              players: [],
+            };
+          }
+        })
+      );
+      sessionsWithHistory.sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      generatePdf({
+        bankBalance: bank?.balance ?? 0,
+        totalChipsInPlay: stats?.totalChipsInPlay ?? 0,
+        totalFixumPaid: stats?.totalFixumPaid ?? 0,
+        players: (players ?? []).map((p) => ({
+          name: p.name,
+          chipBalance: p.chipBalance,
+          fixumPaid: p.fixumPaid,
+        })),
+        sessions: sessionsWithHistory,
+      });
+    } catch {
+      toast({ title: "Fehler", description: "PDF konnte nicht erstellt werden.", variant: "destructive" });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const formatCurrency = (val: number) => {
     return val.toFixed(2).replace('.', ',') + " €";
@@ -125,15 +189,26 @@ export default function Dashboard() {
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">VflBlackJack</h1>
             <p className="text-sm text-muted-foreground mt-1">Spielgeld-Verwaltung</p>
           </div>
-          <div className="text-right">
-            <p className="text-sm text-muted-foreground uppercase tracking-widest mb-1">Bankbestand</p>
-            {isBankLoading ? (
-              <Skeleton className="h-10 w-40 ml-auto" />
-            ) : (
-              <div className="text-4xl md:text-5xl font-bold text-primary">
-                {formatCurrency(bank?.balance ?? 0)}
-              </div>
-            )}
+          <div className="flex flex-col items-end gap-3">
+            <div className="text-right">
+              <p className="text-sm text-muted-foreground uppercase tracking-widest mb-1">Bankbestand</p>
+              {isBankLoading ? (
+                <Skeleton className="h-10 w-40 ml-auto" />
+              ) : (
+                <div className="text-4xl md:text-5xl font-bold text-primary">
+                  {formatCurrency(bank?.balance ?? 0)}
+                </div>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportPdf}
+              disabled={isExporting}
+              className="border-primary/50 text-primary hover:bg-primary/10 uppercase tracking-wider text-xs"
+            >
+              {isExporting ? "Erstelle PDF..." : "Alle Daten als PDF exportieren"}
+            </Button>
           </div>
         </header>
 

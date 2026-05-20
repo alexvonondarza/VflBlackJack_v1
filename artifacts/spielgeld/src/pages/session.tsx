@@ -573,7 +573,7 @@ function NewPlayerInSessionDialog({ sessionId, onCreate, isPending }: { sessionI
 
 function SessionHistoryCard({ session, formatCurrency }: { session: { id: number; name: string; createdAt: string; endedAt?: string | null; playerCount: number }; formatCurrency: (v: number) => string }) {
   const [open, setOpen] = useState(false);
-  const { data: history, isLoading } = useGetGameSessionHistory(session.id, { query: { enabled: open } });
+  const { data: history, isLoading } = useGetGameSessionHistory(session.id, { query: { enabled: open, queryKey: [] } });
 
   const dateStr = new Date(session.createdAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const endStr = session.endedAt ? new Date(session.endedAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : null;
