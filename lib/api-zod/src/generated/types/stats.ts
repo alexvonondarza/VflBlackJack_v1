@@ -10,4 +10,5 @@ export interface Stats {
   bankBalance: number;
   playerCount: number;
   totalChipsInPlay: number;
+  totalFixumPaid: number;
 }

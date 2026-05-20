@@ -426,13 +426,15 @@ components:
 
     Stats:
       type: object
-      required: [bankBalance, playerCount, totalChipsInPlay]
+      required: [bankBalance, playerCount, totalChipsInPlay, totalFixumPaid]
       properties:
         bankBalance:
           type: number
         playerCount:
           type: integer
         totalChipsInPlay:
+          type: number
+        totalFixumPaid:
           type: number
 
     GameSession:

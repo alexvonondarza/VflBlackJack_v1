@@ -118,6 +118,7 @@ export const GetStatsResponse = zod.object({
   bankBalance: zod.number(),
   playerCount: zod.number(),
   totalChipsInPlay: zod.number(),
+  totalFixumPaid: zod.number(),
 });
 
 /**

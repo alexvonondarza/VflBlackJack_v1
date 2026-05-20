@@ -27,8 +27,9 @@ router.get("/stats", async (req, res) => {
     const players = await db.select().from(playersTable);
     const playerCount = players.length;
     const totalChipsInPlay = players.reduce((sum, p) => sum + Number(p.chipBalance), 0);
+    const totalFixumPaid = players.reduce((sum, p) => sum + Number(p.fixumPaid), 0);
 
-    res.json({ bankBalance, playerCount, totalChipsInPlay });
+    res.json({ bankBalance, playerCount, totalChipsInPlay, totalFixumPaid });
   } catch (err) {
     req.log.error({ err }, "Failed to get stats");
     res.status(500).json({ error: "Internal server error" });
