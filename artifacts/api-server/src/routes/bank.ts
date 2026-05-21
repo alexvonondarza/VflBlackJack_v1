@@ -1,38 +1,91 @@
 import { Router } from "express";
-import { db, bankTable, playersTable } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { db, bankTable, playersTable } from "@workspace/db";
 
 const router = Router();
 
-router.get("/bank", async (req, res) => {
+async function ensureBank() {
+  const rows = await db.select().from(bankTable).limit(1);
+
+  if (rows.length === 0) {
+    const [row] = await db
+      .insert(bankTable)
+      .values({ balance: "0.00" })
+      .returning();
+
+    return row;
+  }
+
+  return rows[0];
+}
+
+router.get("/bank", async (_req, res) => {
   try {
-    const bankRows = await db.select().from(bankTable).limit(1);
-    if (bankRows.length === 0) {
-      await db.insert(bankTable).values({ balance: "0.00" });
-      res.json({ balance: 0 });
-      return;
-    }
-    res.json({ balance: Number(bankRows[0].balance) });
+    const bank = await ensureBank();
+
+    res.json({
+      balance: Number(bank.balance),
+      updatedAt: bank.updatedAt.toISOString(),
+    });
   } catch (err) {
-    req.log.error({ err }, "Failed to get bank");
+    console.error("Failed to get bank", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-router.get("/stats", async (req, res) => {
+router.get("/stats", async (_req, res) => {
   try {
-    const bankRows = await db.select().from(bankTable).limit(1);
-    const bankBalance = bankRows.length > 0 ? Number(bankRows[0].balance) : 0;
+    const bank = await ensureBank();
 
-    const players = await db.select().from(playersTable);
-    const playerCount = players.length;
-    const totalChipsInPlay = players.reduce((sum, p) => sum + Number(p.chipBalance), 0);
-    const totalFixumPaid = players.reduce((sum, p) => sum + Number(p.fixumPaid), 0);
+    const playerCountResult = await db
+      .select({
+        count: sql<number>`count(*)`,
+      })
+      .from(playersTable);
 
-    res.json({ bankBalance, playerCount, totalChipsInPlay, totalFixumPaid });
+    const chipsResult = await db
+      .select({
+        total: sql<string>`coalesce(sum(${playersTable.chipBalance}), 0)`,
+      })
+      .from(playersTable);
+
+    const fixumResult = await db
+      .select({
+        total: sql<string>`coalesce(sum(${playersTable.fixumPaid}), 0)`,
+      })
+      .from(playersTable);
+
+    const bankBalance = Number(bank.balance);
+
+    const playerCount = Number(
+      playerCountResult[0]?.count ?? 0,
+    );
+
+    const totalChipsInPlay = Number(
+      chipsResult[0]?.total ?? 0,
+    );
+
+    const totalFixumPaid = Number(
+      fixumResult[0]?.total ?? 0,
+    );
+
+    // Gesamtvermögen im System:
+    // Bank + alle Spielerbestände
+    const totalInCirculation =
+      bankBalance + totalChipsInPlay;
+
+    res.json({
+      bankBalance,
+      playerCount,
+      totalChipsInPlay,
+      totalFixumPaid,
+      totalInCirculation,
+    });
   } catch (err) {
-    req.log.error({ err }, "Failed to get stats");
-    res.status(500).json({ error: "Internal server error" });
+    console.error("Failed to get stats", err);
+    res.status(500).json({
+      error: "Internal server error",
+    });
   }
 });
 
