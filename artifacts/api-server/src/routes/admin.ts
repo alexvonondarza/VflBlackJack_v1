@@ -10,6 +10,7 @@ import {
   gameSessionPlayersTable,
   balanceSnapshotsTable,
   adminSettingsTable,
+  chipInventoryTable,
 } from "@workspace/db";
 
 const router = Router();
@@ -285,6 +286,45 @@ router.delete("/admin/reset", async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error("Failed to reset database", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.put("/admin/chip-inventory", async (req, res) => {
+  try {
+    if (!(await requireAdmin(req, res))) return;
+
+    const { chips } = req.body;
+
+    if (!Array.isArray(chips)) {
+      res.status(400).json({ error: "chips must be an array" });
+      return;
+    }
+
+    await db.delete(chipInventoryTable);
+
+    for (const chip of chips) {
+      const value = Number(chip.value);
+      const quantity = Number(chip.quantity);
+
+      if (
+        Number.isNaN(value) ||
+        Number.isNaN(quantity) ||
+        value <= 0 ||
+        quantity < 0
+      ) {
+        continue;
+      }
+
+      await db.insert(chipInventoryTable).values({
+        value,
+        quantity,
+      });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Failed to save chip inventory", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
