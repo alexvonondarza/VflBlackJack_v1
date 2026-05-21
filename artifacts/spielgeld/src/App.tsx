@@ -6,6 +6,7 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Session from "@/pages/session";
 import { useGetActiveSession } from "@workspace/api-client-react";
+import Admin from "@/pages/admin";
 
 const queryClient = new QueryClient();
 
@@ -33,11 +34,11 @@ function Router() {
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <Navigation />
       <div className="flex-1">
-        <Switch>
-          <Route path="/" component={Dashboard} />
-          <Route path="/session" component={Session} />
-          <Route component={NotFound} />
-        </Switch>
+<Switch>
+  <Route path="/" component={Dashboard} />
+  <Route path="/session" component={Session} />
+  <Route path="/admin" component={Admin} />
+</Switch>
       </div>
     </div>
   );
