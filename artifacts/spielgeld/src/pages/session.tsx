@@ -75,7 +75,17 @@ export default function Session() {
   const buyChips = useBuyChips();
   const createPlayer = useCreatePlayer();
 
-  const [newSessionName, setNewSessionName] = useState("");
+const [newSessionName, setNewSessionName] = useState(() => {
+  const now = new Date();
+
+  return now.toLocaleString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+});
 
   const formatCurrency = (val: number) => {
     return val.toFixed(2).replace(".", ",") + " €";
@@ -507,9 +517,9 @@ export default function Session() {
                   Titel des Spielabends
                 </label>
                 <Input
-                  id="sessionName"
-                  value={newSessionName}
-                  onChange={(e) => setNewSessionName(e.target.value)}
+                id="sessionName"
+                value={newSessionName}
+                readOnly
                   placeholder="z.B. Freitag 13.05.2026"
                   className="border-border bg-background focus-visible:ring-primary text-center text-lg"
                 />
