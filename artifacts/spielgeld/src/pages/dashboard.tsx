@@ -218,7 +218,7 @@ export default function Dashboard() {
             </CardHeader>
 <CardContent className="space-y-4">
   <div className="flex justify-between items-center border-b border-border pb-2">
-    <span className="text-muted-foreground">Aktive Spieler</span>
+    <span className="text-muted-foreground">Anzahl Spieler</span>
     {isStatsLoading ? (
       <Skeleton className="h-6 w-8" />
     ) : (
@@ -227,34 +227,23 @@ export default function Dashboard() {
   </div>
 
   <div className="flex justify-between items-center border-b border-border pb-2">
-    <span className="text-muted-foreground">Fixum gesamt</span>
+    <span className="text-muted-foreground">Summe Bank</span>
     {isStatsLoading ? (
       <Skeleton className="h-6 w-24" />
     ) : (
       <span className="font-bold text-lg">
-        {formatCurrency(stats?.totalFixumPaid ?? 0)}
+        {formatCurrency(stats?.bankBalance ?? 0)}
       </span>
     )}
   </div>
 
   <div className="flex justify-between items-center border-b border-border pb-2">
-    <span className="text-muted-foreground">Jetons im Spiel</span>
+    <span className="text-muted-foreground">Summe aller Jetons</span>
     {isStatsLoading ? (
       <Skeleton className="h-6 w-24" />
     ) : (
       <span className="font-bold text-lg">
         {formatCurrency(stats?.totalChipsInPlay ?? 0)}
-      </span>
-    )}
-  </div>
-
-  <div className="flex justify-between items-center border-b border-border pb-2">
-    <span className="text-muted-foreground">Aktives Gesamtvermögen</span>
-    {isStatsLoading ? (
-      <Skeleton className="h-6 w-24" />
-    ) : (
-      <span className="font-bold text-lg">
-        {formatCurrency(stats?.activeTotal ?? 0)}
       </span>
     )}
   </div>
