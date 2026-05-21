@@ -1,4 +1,4 @@
-import { Switch, Route, Link, useLocation } from "wouter";
+import { Switch, Route, Link } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,22 +11,23 @@ import { useGetActiveSession } from "@workspace/api-client-react";
 const queryClient = new QueryClient();
 
 function Navigation() {
-  const [location] = useLocation();
   const { data: activeSession } = useGetActiveSession();
 
   return (
     <nav className="border-b border-border px-4 py-3 font-mono">
-      <div className="max-w-6xl mx-auto flex gap-4">
+      <div className="max-w-6xl mx-auto flex gap-4 items-center">
         <Link href="/">Übersicht</Link>
         <Link href="/session">Spielabend</Link>
         <Link href="/admin">Administration</Link>
-        {activeSession && <span className="text-orange-500">Aktiv</span>}
+        {activeSession && (
+          <span className="text-orange-500 text-sm font-bold">Aktiv</span>
+        )}
       </div>
     </nav>
   );
 }
 
-function Router() {
+function AppRouter() {
   return (
     <>
       <Navigation />
@@ -44,7 +45,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Router />
+        <AppRouter />
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
