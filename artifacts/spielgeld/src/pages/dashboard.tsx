@@ -85,17 +85,20 @@ export default function Dashboard() {
       sessionsWithHistory.sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
-      generatePdf({
-        bankBalance: bank?.balance ?? 0,
-        totalChipsInPlay: stats?.totalChipsInPlay ?? 0,
-        totalFixumPaid: stats?.totalFixumPaid ?? 0,
-        players: (players ?? []).map((p) => ({
-          name: p.name,
-          chipBalance: p.chipBalance,
-          fixumPaid: p.fixumPaid,
-        })),
-        sessions: sessionsWithHistory,
-      });
+generatePdf({
+  bankBalance: stats?.bankBalance ?? bank?.balance ?? 0,
+  totalChipsInPlay: stats?.totalChipsInPlay ?? 0,
+  totalInCirculation: stats?.totalInCirculation ?? 0,
+
+  players:
+    players?.map((p) => ({
+      name: p.name,
+      chipBalance: p.chipBalance,
+      fixumPaid: p.fixumPaid,
+    })) ?? [],
+
+  sessions: [],
+});
     } catch {
       toast({ title: "Fehler", description: "PDF konnte nicht erstellt werden.", variant: "destructive" });
     } finally {
