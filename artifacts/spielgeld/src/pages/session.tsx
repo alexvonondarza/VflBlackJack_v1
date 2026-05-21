@@ -73,32 +73,57 @@ function calculateChipDistribution(
   players: { name: string; chipBalance: number }[],
   inventory: ChipInventoryItem[],
 ): ChipDistributionRow[] {
-  const remaining = [...inventory].sort((a, b) => a.value - b.value);
+  const sortedChips = [...inventory].sort((a, b) => a.value - b.value);
+  const remainders = players.map((p) => Math.round(Number(p.chipBalance)));
+  const distributions: Record<number, number>[] = players.map(() => ({}));
 
-  return players.map((player) => {
-    let amount = Math.round(Number(player.chipBalance));
-    const distribution: Record<number, number> = {};
+  for (const chip of sortedChips) {
+    let available = chip.quantity;
+    if (available === 0) continue;
 
-    for (const chip of remaining) {
-      if (amount <= 0) break;
+    const demanded = remainders.map((rem) => Math.floor(rem / chip.value));
+    const totalDemanded = demanded.reduce((a, b) => a + b, 0);
+    if (totalDemanded === 0) continue;
 
-      const needed = Math.floor(amount / chip.value);
-      const used = Math.min(needed, chip.quantity);
-
-      if (used > 0) {
-        distribution[chip.value] = used;
-        chip.quantity -= used;
-        amount -= used * chip.value;
+    if (totalDemanded <= available) {
+      players.forEach((_, i) => {
+        if (demanded[i] > 0) {
+          distributions[i][chip.value] = demanded[i];
+          remainders[i] -= demanded[i] * chip.value;
+        }
+      });
+    } else {
+      players.forEach((_, i) => {
+        if (demanded[i] > 0) {
+          const give = Math.floor((demanded[i] / totalDemanded) * available);
+          if (give > 0) {
+            distributions[i][chip.value] = give;
+            remainders[i] -= give * chip.value;
+            available -= give;
+          }
+        }
+      });
+      const byDemand = players
+        .map((_, i) => i)
+        .sort((a, b) => demanded[b] - demanded[a]);
+      for (const idx of byDemand) {
+        if (available <= 0) break;
+        if (remainders[idx] >= chip.value) {
+          distributions[idx][chip.value] =
+            (distributions[idx][chip.value] || 0) + 1;
+          remainders[idx] -= chip.value;
+          available -= 1;
+        }
       }
     }
+  }
 
-    return {
-      name: player.name,
-      targetAmount: Number(player.chipBalance),
-      distribution,
-      rest: amount,
-    };
-  });
+  return players.map((player, i) => ({
+    name: player.name,
+    targetAmount: Number(player.chipBalance),
+    distribution: distributions[i],
+    rest: remainders[i],
+  }));
 }
 
 export default function Session() {
