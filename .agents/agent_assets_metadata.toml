@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "5QWprP2Tvi5Mz9eO81Of_"
+uri = "file://Anleitung-VflBlackJack.pdf"
+type = "pdf"
+title = "Anleitung VflBlackJack Spielgeld-Verwaltung"
