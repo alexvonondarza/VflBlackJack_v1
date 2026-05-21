@@ -78,8 +78,7 @@ res.json({
   bankBalance,
   playerCount,
   totalChipsInPlay,
-  totalFixumPaid,
-  activeTotal: bankBalance + totalChipsInPlay,
+  totalInCirculation: bankBalance + totalChipsInPlay,
 });
   } catch (err) {
     console.error("Failed to get stats", err);
