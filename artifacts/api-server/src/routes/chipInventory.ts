@@ -11,10 +11,10 @@ router.get("/chip-inventory", async (_req, res) => {
       .orderBy(chipInventoryTable.value);
 
     res.json(
-      chips.map((c) => ({
-        id: c.id,
-        value: c.value,
-        quantity: c.quantity,
+      chips.map((chip) => ({
+        id: chip.id,
+        value: chip.value,
+        quantity: chip.quantity,
       })),
     );
   } catch (err) {
