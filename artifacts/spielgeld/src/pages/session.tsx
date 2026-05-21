@@ -86,7 +86,8 @@ const [newSessionName, setNewSessionName] = useState(() => {
     minute: "2-digit",
   });
 });
-
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<number[]>([]);
+  
   const formatCurrency = (val: number) => {
     return val.toFixed(2).replace(".", ",") + " €";
   };
@@ -341,24 +342,52 @@ const [newSessionName, setNewSessionName] = useState(() => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex flex-wrap gap-2">
-                  {availablePlayers.map((p) => (
-                    <Button
-                      key={p.id}
-                      variant="outline"
-                      onClick={() => handleAddPlayer(activeSession.id, p.id)}
-                      disabled={addPlayer.isPending}
-                    >
-                      + {p.name}
-                    </Button>
-                  ))}
+{availablePlayers.length === 0 ? (
+  <p className="text-muted-foreground">
+    Alle bekannten Spieler sind bereits dabei.
+  </p>
+) : (
+  <>
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {availablePlayers.map((p) => (
+        <label
+          key={p.id}
+          className="flex items-center gap-3 border border-border rounded-md p-3 cursor-pointer hover:bg-muted/50"
+        >
+          <input
+            type="checkbox"
+            checked={selectedPlayerIds.includes(p.id)}
+            onChange={(e) => {
+              if (e.target.checked) {
+                setSelectedPlayerIds((prev) => [...prev, p.id]);
+              } else {
+                setSelectedPlayerIds((prev) =>
+                  prev.filter((id) => id !== p.id),
+                );
+              }
+            }}
+          />
 
-                  {availablePlayers.length === 0 && (
-                    <p className="text-muted-foreground">
-                      Alle bekannten Spieler sind bereits dabei.
-                    </p>
-                  )}
-                </div>
+          <span>{p.name}</span>
+        </label>
+      ))}
+    </div>
+
+    <Button
+      onClick={() => {
+        selectedPlayerIds.forEach((playerId) => {
+          handleAddPlayer(activeSession.id, playerId);
+        });
+
+        setSelectedPlayerIds([]);
+      }}
+      disabled={selectedPlayerIds.length === 0 || addPlayer.isPending}
+      className="font-bold uppercase tracking-wider"
+    >
+      Spieler ins Spiel übernehmen
+    </Button>
+  </>
+)}
 
                 <NewPlayerInSessionDialog
                   sessionId={activeSession.id}
