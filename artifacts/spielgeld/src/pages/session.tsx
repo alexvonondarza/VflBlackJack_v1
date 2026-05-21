@@ -99,8 +99,7 @@ export default function Session() {
     addPlayer.mutate(
       { id: sessionId, data: { playerId } },
       {
-        onSuccess: () => {
-          toast({ title: `${playerName} hinzugefügt`, description: "5,00 € Fixum wurden abgezogen." });
+        onSuccess: () => {          
           invalidateAll();
         },
         onError: () => {
@@ -118,8 +117,7 @@ export default function Session() {
           addPlayer.mutate(
             { id: sessionId, data: { playerId: newPlayer.id } },
             {
-              onSuccess: () => {
-                toast({ title: `${name} angelegt & hinzugefügt`, description: "5,00 € Registrierung + 5,00 € Fixum." });
+              onSuccess: () => {            
                 invalidateAll();
                 cb();
               },
@@ -155,8 +153,7 @@ export default function Session() {
     buyChips.mutate(
       { id: playerId, data: { amount } },
       {
-        onSuccess: () => {
-          toast({ title: "Jetons gekauft", description: `${formatCurrency(amount)} wurden gutgeschrieben.` });
+        onSuccess: () => {          
           onSuccessCb();
           invalidateAll();
         },
