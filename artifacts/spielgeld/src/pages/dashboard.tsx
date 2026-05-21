@@ -190,12 +190,12 @@ export default function Dashboard() {
           </div>
           <div className="flex flex-col items-end gap-3">
             <div className="text-right">
-              <p className="text-sm text-muted-foreground uppercase tracking-widest mb-1">Bankbestand</p>
+              <p className="text-sm text-muted-foreground uppercase tracking-widest mb-1">Im Umlauf gesamt</p>
               {isBankLoading ? (
                 <Skeleton className="h-10 w-40 ml-auto" />
               ) : (
                 <div className="text-4xl md:text-5xl font-bold text-primary">
-                  {formatCurrency(bank?.balance ?? 0)}
+                  {formatCurrency(stats?.totalInCirculation ?? 0)}  
                 </div>
               )}
             </div>
