@@ -216,28 +216,49 @@ export default function Dashboard() {
             <CardHeader>
               <CardTitle className="text-lg text-primary uppercase tracking-wider">Statistik</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex justify-between items-center border-b border-border pb-2">
-                <span className="text-muted-foreground">Aktive Spieler</span>
-                {isStatsLoading ? <Skeleton className="h-6 w-8" /> : <span className="font-bold text-lg">{stats?.playerCount ?? 0}</span>}
-              </div>
-              <div className="flex justify-between items-center border-b border-border pb-2">
-                <span className="text-muted-foreground">Jetons im Spiel</span>
-                {isStatsLoading ? <Skeleton className="h-6 w-24" /> : <span className="font-bold text-lg">{formatCurrency(stats?.totalChipsInPlay ?? 0)}</span>}
-              </div>
-              <div className="flex justify-between items-center border-b border-border pb-2">
-                <span className="text-muted-foreground">Aktives Fixum gesamt</span>
-                {isStatsLoading ? <Skeleton className="h-6 w-24" /> : <span className="font-bold text-lg">{formatCurrency(stats?.totalFixumPaid ?? 0)}</span>}
-              </div>
-              <div className="flex justify-between items-center pt-1">
-                <span className="text-muted-foreground text-xs">Bankbestand Prüfung</span>
-                {isStatsLoading ? <Skeleton className="h-5 w-24" /> : (
-                  <span className={`text-sm font-bold ${Math.abs((stats?.totalChipsInPlay ?? 0) + (stats?.totalFixumPaid ?? 0) - (bank?.balance ?? 0)) < 0.01 ? 'text-green-400' : 'text-red-400'}`}>
-                    {Math.abs((stats?.totalChipsInPlay ?? 0) + (stats?.totalFixumPaid ?? 0) - (bank?.balance ?? 0)) < 0.01 ? 'Ausgeglichen' : 'Differenz!'}
-                  </span>
-                )}
-              </div>
-            </CardContent>
+<CardContent className="space-y-4">
+  <div className="flex justify-between items-center border-b border-border pb-2">
+    <span className="text-muted-foreground">Aktive Spieler</span>
+    {isStatsLoading ? (
+      <Skeleton className="h-6 w-8" />
+    ) : (
+      <span className="font-bold text-lg">{stats?.playerCount ?? 0}</span>
+    )}
+  </div>
+
+  <div className="flex justify-between items-center border-b border-border pb-2">
+    <span className="text-muted-foreground">Fixum gesamt</span>
+    {isStatsLoading ? (
+      <Skeleton className="h-6 w-24" />
+    ) : (
+      <span className="font-bold text-lg">
+        {formatCurrency(stats?.totalFixumPaid ?? 0)}
+      </span>
+    )}
+  </div>
+
+  <div className="flex justify-between items-center border-b border-border pb-2">
+    <span className="text-muted-foreground">Jetons im Spiel</span>
+    {isStatsLoading ? (
+      <Skeleton className="h-6 w-24" />
+    ) : (
+      <span className="font-bold text-lg">
+        {formatCurrency(stats?.totalChipsInPlay ?? 0)}
+      </span>
+    )}
+  </div>
+
+  <div className="flex justify-between items-center border-b border-border pb-2">
+    <span className="text-muted-foreground">Aktives Gesamtvermögen</span>
+    {isStatsLoading ? (
+      <Skeleton className="h-6 w-24" />
+    ) : (
+      <span className="font-bold text-lg">
+        {formatCurrency(stats?.activeTotal ?? 0)}
+      </span>
+    )}
+  </div>
+</CardContent>
           </Card>
 
           <Card className="col-span-1 md:col-span-2 border-border bg-card">
