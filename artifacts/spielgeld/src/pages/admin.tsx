@@ -51,7 +51,7 @@ async function adminFetch(
 export default function Admin() {
   const { toast } = useToast();
 
-  const [chips, setChips] = useState<{ value: number | string; quantity: number }[]>([]);
+  const [chips, setChips] = useState<{ value: number | string; quantity: number | string }[]>([]);
 
   const [password, setPassword] = useState(
     () => localStorage.getItem("adminPassword") || "",
@@ -108,10 +108,10 @@ export default function Admin() {
       if (Array.isArray(data) && data.length > 0) {
         setChips(data.map((c: { value: number; quantity: number }) => ({ value: c.value, quantity: c.quantity })));
       } else {
-        setChips([{ value: "", quantity: 0 }]);
+        setChips([{ value: "", quantity: "" }]);
       }
     } catch {
-      setChips([{ value: "", quantity: 0 }]);
+      setChips([{ value: "", quantity: "" }]);
     }
   };
 
@@ -170,7 +170,7 @@ export default function Admin() {
 const saveChipInventory = async () => {
   const validChips = chips
     .map((c) => ({ value: Number(c.value), quantity: Number(c.quantity) }))
-    .filter((c) => c.value > 0 && !Number.isNaN(c.value));
+    .filter((c) => c.value > 0 && !Number.isNaN(c.value) && !Number.isNaN(c.quantity) && c.quantity >= 0);
 
   if (validChips.length === 0) {
     toast({ title: "Fehler", description: "Mindestens ein gültiger Chip-Wert erforderlich.", variant: "destructive" });
@@ -497,7 +497,7 @@ const saveChipInventory = async () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setChips([...chips, { value: "", quantity: 0 }])}
+              onClick={() => setChips([...chips, { value: "", quantity: "" }])}
             >
               + Chip-Wert hinzufügen
             </Button>
