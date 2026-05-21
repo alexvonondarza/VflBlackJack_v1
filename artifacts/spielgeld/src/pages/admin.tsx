@@ -51,14 +51,7 @@ async function adminFetch(
 export default function Admin() {
   const { toast } = useToast();
 
-  const [chips, setChips] = useState([
-    { value: 1, quantity: 0 },
-    { value: 5, quantity: 0 },
-    { value: 10, quantity: 0 },
-    { value: 20, quantity: 0 },
-    { value: 50, quantity: 0 },
-    { value: 100, quantity: 0 },
-  ]);
+  const [chips, setChips] = useState<{ value: number | string; quantity: number }[]>([]);
 
   const [password, setPassword] = useState(
     () => localStorage.getItem("adminPassword") || "",
@@ -91,7 +84,7 @@ export default function Admin() {
 
       localStorage.setItem("adminPassword", password);
       setIsLoggedIn(true);
-      await loadPlayers(password);
+      await Promise.all([loadPlayers(password), loadChipInventory()]);
     } catch (err) {
       toast({
         title: "Fehler",
@@ -106,6 +99,20 @@ export default function Admin() {
   const loadPlayers = async (pw = password) => {
     const data = await adminFetch("/admin/players", pw);
     setPlayers(data);
+  };
+
+  const loadChipInventory = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/chip-inventory`);
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        setChips(data.map((c: { value: number; quantity: number }) => ({ value: c.value, quantity: c.quantity })));
+      } else {
+        setChips([{ value: "", quantity: 0 }]);
+      }
+    } catch {
+      setChips([{ value: "", quantity: 0 }]);
+    }
   };
 
   const updatePlayer = async (player: AdminPlayer) => {
@@ -161,10 +168,19 @@ export default function Admin() {
   };
 
 const saveChipInventory = async () => {
+  const validChips = chips
+    .map((c) => ({ value: Number(c.value), quantity: Number(c.quantity) }))
+    .filter((c) => c.value > 0 && !Number.isNaN(c.value));
+
+  if (validChips.length === 0) {
+    toast({ title: "Fehler", description: "Mindestens ein gültiger Chip-Wert erforderlich.", variant: "destructive" });
+    return;
+  }
+
   try {
     await adminFetch("/admin/chip-inventory", password, {
       method: "PUT",
-      body: JSON.stringify({ chips }),
+      body: JSON.stringify({ chips: validChips }),
     });
 
     toast({
@@ -431,36 +447,68 @@ const saveChipInventory = async () => {
         </Card>
 
         <Card>
-  <CardHeader>
-    <CardTitle>Verfügbare Chips</CardTitle>
-  </CardHeader>
+          <CardHeader>
+            <CardTitle>Verfügbare Chips</CardTitle>
+          </CardHeader>
 
-  <CardContent className="space-y-4">
-    {chips.map((chip, index) => (
-      <div key={chip.value} className="flex items-center gap-4">
-        <div className="w-24 font-bold">{chip.value} € Chip</div>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+              <span className="text-sm text-muted-foreground font-bold uppercase tracking-wider">Wert (€)</span>
+              <span className="text-sm text-muted-foreground font-bold uppercase tracking-wider">Anzahl</span>
+              <span />
+            </div>
 
-        <Input
-          type="number"
-          min="0"
-          value={chip.quantity}
-          onChange={(e) => {
-            const next = [...chips];
-            next[index] = {
-              ...chip,
-              quantity: Number(e.target.value),
-            };
-            setChips(next);
-          }}
-        />
-      </div>
-    ))}
+            {chips.map((chip, index) => (
+              <div key={index} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                <Input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  placeholder="z.B. 5"
+                  value={chip.value}
+                  onChange={(e) => {
+                    const next = [...chips];
+                    next[index] = { ...chip, value: e.target.value };
+                    setChips(next);
+                  }}
+                />
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="Anzahl"
+                  value={chip.quantity}
+                  onChange={(e) => {
+                    const next = [...chips];
+                    next[index] = { ...chip, quantity: Number(e.target.value) };
+                    setChips(next);
+                  }}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10 px-2"
+                  onClick={() => setChips(chips.filter((_, i) => i !== index))}
+                >
+                  ✕
+                </Button>
+              </div>
+            ))}
 
-    <Button onClick={saveChipInventory}>
-      Chipbestand speichern
-    </Button>
-  </CardContent>
-</Card>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setChips([...chips, { value: "", quantity: 0 }])}
+            >
+              + Chip-Wert hinzufügen
+            </Button>
+
+            <div className="pt-2">
+              <Button onClick={saveChipInventory}>
+                Chipbestand speichern
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
