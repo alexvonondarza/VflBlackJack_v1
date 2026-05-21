@@ -320,7 +320,6 @@ router.delete("/admin/reset", async (req, res) => {
     await db.delete(gameSessionsTable);
     await db.delete(playersTable);
     await db.delete(bankTable);
-    await db.delete(chipInventoryTable);
 
     await db.insert(bankTable).values({
       balance: "0.00",
