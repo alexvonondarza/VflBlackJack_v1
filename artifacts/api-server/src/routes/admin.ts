@@ -185,7 +185,10 @@ router.put("/admin/players/:id", async (req, res) => {
       return;
     }
 
-    const updateValues: Record<string, unknown> = {};
+    const updateValues: {
+      name?: string;
+      chipBalance?: string;
+    } = {};
 
     if (typeof name === "string" && name.trim()) {
       updateValues.name = name.trim();
@@ -269,27 +272,6 @@ router.post("/admin/initial-balances", async (req, res) => {
   }
 });
 
-router.delete("/admin/reset", async (req, res) => {
-  try {
-    if (!(await requireAdmin(req, res))) return;
-
-    await db.delete(balanceSnapshotsTable);
-    await db.delete(gameSessionPlayersTable);
-    await db.delete(gameSessionsTable);
-    await db.delete(playersTable);
-    await db.delete(bankTable);
-
-    await db.insert(bankTable).values({
-      balance: "0.00",
-    });
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error("Failed to reset database", err);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
 router.put("/admin/chip-inventory", async (req, res) => {
   try {
     if (!(await requireAdmin(req, res))) return;
@@ -325,6 +307,28 @@ router.put("/admin/chip-inventory", async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error("Failed to save chip inventory", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.delete("/admin/reset", async (req, res) => {
+  try {
+    if (!(await requireAdmin(req, res))) return;
+
+    await db.delete(balanceSnapshotsTable);
+    await db.delete(gameSessionPlayersTable);
+    await db.delete(gameSessionsTable);
+    await db.delete(playersTable);
+    await db.delete(bankTable);
+    await db.delete(chipInventoryTable);
+
+    await db.insert(bankTable).values({
+      balance: "0.00",
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Failed to reset database", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
