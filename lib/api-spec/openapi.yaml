@@ -426,7 +426,7 @@ components:
 
     Stats:
       type: object
-      required: [bankBalance, playerCount, totalChipsInPlay, totalFixumPaid]
+      required: [bankBalance, playerCount, totalChipsInPlay, totalFixumPaid, totalInCirculation]
       properties:
         bankBalance:
           type: number
@@ -435,6 +435,8 @@ components:
         totalChipsInPlay:
           type: number
         totalFixumPaid:
+          type: number
+        totalInCirculation:
           type: number
 
     GameSession:

@@ -54,6 +54,7 @@ export interface Stats {
   playerCount: number;
   totalChipsInPlay: number;
   totalFixumPaid: number;
+  totalInCirculation: number;
 }
 
 export type GameSessionStatus =

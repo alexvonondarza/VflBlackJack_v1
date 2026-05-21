@@ -22,17 +22,7 @@ type AdminPlayer = {
   createdAt: string;
 };
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "https://vfl-black-jack-v1-api-server.vercel.app";
-
-const [chips, setChips] = useState([
-  { value: 1, quantity: 0 },
-  { value: 5, quantity: 0 },
-  { value: 10, quantity: 0 },
-  { value: 20, quantity: 0 },
-  { value: 50, quantity: 0 },
-  { value: 100, quantity: 0 },
-]);
+const API_BASE_URL = import.meta.env.VITE_API_URL || "";
 
 async function adminFetch(
   path: string,
@@ -60,6 +50,15 @@ async function adminFetch(
 
 export default function Admin() {
   const { toast } = useToast();
+
+  const [chips, setChips] = useState([
+    { value: 1, quantity: 0 },
+    { value: 5, quantity: 0 },
+    { value: 10, quantity: 0 },
+    { value: 20, quantity: 0 },
+    { value: 50, quantity: 0 },
+    { value: 100, quantity: 0 },
+  ]);
 
   const [password, setPassword] = useState(
     () => localStorage.getItem("adminPassword") || "",
