@@ -25,6 +25,15 @@ type AdminPlayer = {
 const API_BASE_URL =
   import.meta.env.VITE_API_URL || "https://vfl-black-jack-v1-api-server.vercel.app";
 
+const [chips, setChips] = useState([
+  { value: 1, quantity: 0 },
+  { value: 5, quantity: 0 },
+  { value: 10, quantity: 0 },
+  { value: 20, quantity: 0 },
+  { value: 50, quantity: 0 },
+  { value: 100, quantity: 0 },
+]);
+
 async function adminFetch(
   path: string,
   password: string,
@@ -152,6 +161,26 @@ export default function Admin() {
     }
   };
 
+const saveChipInventory = async () => {
+  try {
+    await adminFetch("/admin/chip-inventory", password, {
+      method: "PUT",
+      body: JSON.stringify({ chips }),
+    });
+
+    toast({
+      title: "Gespeichert",
+      description: "Chipbestand wurde aktualisiert.",
+    });
+  } catch {
+    toast({
+      title: "Fehler",
+      description: "Chipbestand konnte nicht gespeichert werden.",
+      variant: "destructive",
+    });
+  }
+};
+  
   const changePassword = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -401,6 +430,38 @@ export default function Admin() {
             </Button>
           </CardContent>
         </Card>
+
+        <Card>
+  <CardHeader>
+    <CardTitle>Verfügbare Chips</CardTitle>
+  </CardHeader>
+
+  <CardContent className="space-y-4">
+    {chips.map((chip, index) => (
+      <div key={chip.value} className="flex items-center gap-4">
+        <div className="w-24 font-bold">{chip.value} € Chip</div>
+
+        <Input
+          type="number"
+          min="0"
+          value={chip.quantity}
+          onChange={(e) => {
+            const next = [...chips];
+            next[index] = {
+              ...chip,
+              quantity: Number(e.target.value),
+            };
+            setChips(next);
+          }}
+        />
+      </div>
+    ))}
+
+    <Button onClick={saveChipInventory}>
+      Chipbestand speichern
+    </Button>
+  </CardContent>
+</Card>
       </div>
     </div>
   );
