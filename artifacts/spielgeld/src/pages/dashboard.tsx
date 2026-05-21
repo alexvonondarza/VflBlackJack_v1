@@ -30,8 +30,7 @@ import { Badge } from "@/components/ui/badge";
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
-  
+    
   const { data: bank, isLoading: isBankLoading } = useGetBank();
   const { data: stats, isLoading: isStatsLoading } = useGetStats();
   const { data: players, isLoading: isPlayersLoading } = useListPlayers();
@@ -117,7 +116,7 @@ export default function Dashboard() {
       {
         onSuccess: () => {
           setNewPlayerName("");
-          toast({ title: "Spieler hinzugefügt", description: "5,00 € Fixum wurden automatisch eingezahlt." });
+         
           queryClient.invalidateQueries({ queryKey: getListPlayersQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetBankQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetStatsQueryKey() });
@@ -134,7 +133,7 @@ export default function Dashboard() {
       { id },
       {
         onSuccess: (data) => {
-          toast({ title: "Spieler ausgezahlt und gelöscht", description: `${formatCurrency(data.cashoutAmount)} wurden ausgezahlt.` });
+        
           queryClient.invalidateQueries({ queryKey: getListPlayersQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetBankQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetStatsQueryKey() });
@@ -151,7 +150,7 @@ export default function Dashboard() {
       { id, data: { amount } },
       {
         onSuccess: () => {
-          toast({ title: "Jetons gekauft", description: `${formatCurrency(amount)} wurden gutgeschrieben.` });
+        
           onSuccessCb();
           queryClient.invalidateQueries({ queryKey: getListPlayersQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetBankQueryKey() });
