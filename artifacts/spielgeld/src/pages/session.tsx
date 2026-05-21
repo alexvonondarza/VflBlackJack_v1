@@ -57,6 +57,50 @@ import {
 } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 
+type ChipInventoryItem = {
+  value: number;
+  quantity: number;
+};
+
+type ChipDistributionRow = {
+  name: string;
+  targetAmount: number;
+  distribution: Record<number, number>;
+  rest: number;
+};
+
+function calculateChipDistribution(
+  players: { name: string; chipBalance: number }[],
+  inventory: ChipInventoryItem[],
+): ChipDistributionRow[] {
+  const remaining = [...inventory].sort((a, b) => a.value - b.value);
+
+  return players.map((player) => {
+    let amount = Math.round(Number(player.chipBalance));
+    const distribution: Record<number, number> = {};
+
+    for (const chip of remaining) {
+      if (amount <= 0) break;
+
+      const needed = Math.floor(amount / chip.value);
+      const used = Math.min(needed, chip.quantity);
+
+      if (used > 0) {
+        distribution[chip.value] = used;
+        chip.quantity -= used;
+        amount -= used * chip.value;
+      }
+    }
+
+    return {
+      name: player.name,
+      targetAmount: Number(player.chipBalance),
+      distribution,
+      rest: amount,
+    };
+  });
+}
+
 export default function Session() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -74,35 +118,28 @@ export default function Session() {
   const removePlayer = useRemovePlayerFromSession();
   const buyChips = useBuyChips();
   const createPlayer = useCreatePlayer();
-  const [chipInventory, setChipInventory] = useState<{ value: number; quantity: number }[]>([]);
-  const chipDistribution = calculateChipDistribution(
-  sessionPlayers.map((p) => ({
-    name: p.name,
-    chipBalance: Number(p.chipBalance),
-  })),
-  chipInventory,
-);
-  
-  useEffect(() => {
-  fetch(`${import.meta.env.VITE_API_URL}/api/chip-inventory`)
-    .then((res) => res.json())
-    .then(setChipInventory)
-    .catch(() => setChipInventory([]));
-}, []);
-  
-const [newSessionName, setNewSessionName] = useState(() => {
-  const now = new Date();
 
-  return now.toLocaleString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-});
+  const [chipInventory, setChipInventory] = useState<ChipInventoryItem[]>([]);
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<number[]>([]);
-  
+  const [newSessionName, setNewSessionName] = useState(() => {
+    const now = new Date();
+
+    return now.toLocaleString("de-DE", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  });
+
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL}/api/chip-inventory`)
+      .then((res) => res.json())
+      .then(setChipInventory)
+      .catch(() => setChipInventory([]));
+  }, []);
+
   const formatCurrency = (val: number) => {
     return val.toFixed(2).replace(".", ",") + " €";
   };
@@ -117,13 +154,25 @@ const [newSessionName, setNewSessionName] = useState(() => {
 
   const handleCreateSession = (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!newSessionName.trim()) return;
 
     createSession.mutate(
       { data: { name: newSessionName.trim() } },
       {
         onSuccess: () => {
-          setNewSessionName("");
+          const now = new Date();
+
+          setNewSessionName(
+            now.toLocaleString("de-DE", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+          );
+
           invalidateAll();
         },
         onError: () => {
@@ -176,6 +225,14 @@ const [newSessionName, setNewSessionName] = useState(() => {
         },
       },
     );
+  };
+
+  const handleAddSelectedPlayers = (sessionId: number) => {
+    selectedPlayerIds.forEach((playerId) => {
+      handleAddPlayer(sessionId, playerId);
+    });
+
+    setSelectedPlayerIds([]);
   };
 
   const handleCreateAndAddPlayer = (
@@ -289,9 +346,18 @@ const [newSessionName, setNewSessionName] = useState(() => {
     const availablePlayers = (allPlayers || []).filter(
       (p) => !sessionPlayerIds.has(p.id),
     );
+
     const totalChipsInPlay = sessionPlayers.reduce(
       (acc, p) => acc + Number(p.chipBalance),
       0,
+    );
+
+    const chipDistribution = calculateChipDistribution(
+      sessionPlayers.map((p) => ({
+        name: p.name,
+        chipBalance: Number(p.chipBalance),
+      })),
+      chipInventory,
     );
 
     return (
@@ -302,6 +368,7 @@ const [newSessionName, setNewSessionName] = useState(() => {
               <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">
                 {activeSession.name}
               </h1>
+
               <div className="flex items-center gap-2 mt-2">
                 <Badge className="bg-orange-500 text-white">Aktiv</Badge>
                 <p className="text-sm text-muted-foreground">
@@ -326,6 +393,7 @@ const [newSessionName, setNewSessionName] = useState(() => {
                   Statistik
                 </CardTitle>
               </CardHeader>
+
               <CardContent className="space-y-4">
                 <div className="flex justify-between items-center border-b border-border pb-2">
                   <span className="text-muted-foreground">Teilnehmer</span>
@@ -349,108 +417,57 @@ const [newSessionName, setNewSessionName] = useState(() => {
                 </div>
               </CardContent>
             </Card>
-            <Card className="border-border bg-card">
-  <CardHeader>
-    <CardTitle className="text-lg text-primary uppercase tracking-wider">
-      Jeton-Verteilung
-    </CardTitle>
-  </CardHeader>
 
-  <CardContent>
-    {chipDistribution.length === 0 ? (
-      <p className="text-muted-foreground">
-        Keine Spieler für die Verteilung vorhanden.
-      </p>
-    ) : (
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Spieler</TableHead>
-            <TableHead className="text-right">Betrag</TableHead>
-            <TableHead>Verteilung</TableHead>
-            <TableHead className="text-right">Rest</TableHead>
-          </TableRow>
-        </TableHeader>
-
-        <TableBody>
-          {chipDistribution.map((row) => (
-            <TableRow key={row.name}>
-              <TableCell>{row.name}</TableCell>
-
-              <TableCell className="text-right">
-                {formatCurrency(row.targetAmount)}
-              </TableCell>
-
-              <TableCell>
-                {Object.entries(row.distribution)
-                  .map(([value, count]) => `${count}× ${value} €`)
-                  .join(", ") || "-"}
-              </TableCell>
-
-              <TableCell className="text-right">
-                {row.rest === 0 ? "-" : formatCurrency(row.rest)}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    )}
-  </CardContent>
-</Card>
-            
             <Card className="md:col-span-2 border-border bg-card">
               <CardHeader>
                 <CardTitle className="text-lg text-primary uppercase tracking-wider">
                   Spieler hinzufügen
                 </CardTitle>
               </CardHeader>
+
               <CardContent className="space-y-4">
-{availablePlayers.length === 0 ? (
-  <p className="text-muted-foreground">
-    Alle bekannten Spieler sind bereits dabei.
-  </p>
-) : (
-  <>
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      {availablePlayers.map((p) => (
-        <label
-          key={p.id}
-          className="flex items-center gap-3 border border-border rounded-md p-3 cursor-pointer hover:bg-muted/50"
-        >
-          <input
-            type="checkbox"
-            checked={selectedPlayerIds.includes(p.id)}
-            onChange={(e) => {
-              if (e.target.checked) {
-                setSelectedPlayerIds((prev) => [...prev, p.id]);
-              } else {
-                setSelectedPlayerIds((prev) =>
-                  prev.filter((id) => id !== p.id),
-                );
-              }
-            }}
-          />
+                {availablePlayers.length === 0 ? (
+                  <p className="text-muted-foreground">
+                    Alle bekannten Spieler sind bereits dabei.
+                  </p>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {availablePlayers.map((p) => (
+                        <label
+                          key={p.id}
+                          className="flex items-center gap-3 border border-border rounded-md p-3 cursor-pointer hover:bg-muted/50"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedPlayerIds.includes(p.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedPlayerIds((prev) => [...prev, p.id]);
+                              } else {
+                                setSelectedPlayerIds((prev) =>
+                                  prev.filter((id) => id !== p.id),
+                                );
+                              }
+                            }}
+                          />
 
-          <span>{p.name}</span>
-        </label>
-      ))}
-    </div>
+                          <span>{p.name}</span>
+                        </label>
+                      ))}
+                    </div>
 
-    <Button
-      onClick={() => {
-        selectedPlayerIds.forEach((playerId) => {
-          handleAddPlayer(activeSession.id, playerId);
-        });
-
-        setSelectedPlayerIds([]);
-      }}
-      disabled={selectedPlayerIds.length === 0 || addPlayer.isPending}
-      className="font-bold uppercase tracking-wider"
-    >
-      Spieler ins Spiel übernehmen
-    </Button>
-  </>
-)}
+                    <Button
+                      onClick={() => handleAddSelectedPlayers(activeSession.id)}
+                      disabled={
+                        selectedPlayerIds.length === 0 || addPlayer.isPending
+                      }
+                      className="font-bold uppercase tracking-wider"
+                    >
+                      Spieler ins Spiel übernehmen
+                    </Button>
+                  </>
+                )}
 
                 <NewPlayerInSessionDialog
                   sessionId={activeSession.id}
@@ -466,9 +483,56 @@ const [newSessionName, setNewSessionName] = useState(() => {
           <Card className="border-border bg-card">
             <CardHeader>
               <CardTitle className="text-lg text-primary uppercase tracking-wider">
+                Jeton-Verteilung
+              </CardTitle>
+            </CardHeader>
+
+            <CardContent>
+              {chipDistribution.length === 0 ? (
+                <p className="text-muted-foreground">
+                  Keine Spieler für die Verteilung vorhanden.
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Spieler</TableHead>
+                      <TableHead className="text-right">Betrag</TableHead>
+                      <TableHead>Verteilung</TableHead>
+                      <TableHead className="text-right">Rest</TableHead>
+                    </TableRow>
+                  </TableHeader>
+
+                  <TableBody>
+                    {chipDistribution.map((row) => (
+                      <TableRow key={row.name}>
+                        <TableCell>{row.name}</TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(row.targetAmount)}
+                        </TableCell>
+                        <TableCell>
+                          {Object.entries(row.distribution)
+                            .map(([value, count]) => `${count}× ${value} €`)
+                            .join(", ") || "-"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {row.rest === 0 ? "-" : formatCurrency(row.rest)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-border bg-card">
+            <CardHeader>
+              <CardTitle className="text-lg text-primary uppercase tracking-wider">
                 Teilnehmer
               </CardTitle>
             </CardHeader>
+
             <CardContent>
               {sessionPlayers.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
@@ -488,6 +552,7 @@ const [newSessionName, setNewSessionName] = useState(() => {
                         <TableHead className="text-right">Aktionen</TableHead>
                       </TableRow>
                     </TableHeader>
+
                     <TableBody>
                       {sessionPlayers.map((player) => {
                         const joinTime = new Date(
@@ -505,15 +570,19 @@ const [newSessionName, setNewSessionName] = useState(() => {
                             <TableCell className="font-medium text-lg">
                               {player.name}
                             </TableCell>
+
                             <TableCell className="text-right font-bold text-primary">
                               {formatCurrency(Number(player.chipBalance))}
                             </TableCell>
+
                             <TableCell className="text-right text-muted-foreground">
                               {formatCurrency(Number(player.fixumPaid))}
                             </TableCell>
+
                             <TableCell className="text-right text-muted-foreground">
                               {joinTime}
                             </TableCell>
+
                             <TableCell className="text-right space-x-2">
                               <BuyChipsDialog
                                 player={player}
@@ -533,21 +602,25 @@ const [newSessionName, setNewSessionName] = useState(() => {
                                     Entfernen
                                   </Button>
                                 </AlertDialogTrigger>
+
                                 <AlertDialogContent className="bg-card border-border">
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>
                                       Spieler entfernen?
                                     </AlertDialogTitle>
+
                                     <AlertDialogDescription>
                                       Soll {player.name} aus diesem Spielabend
                                       entfernt werden? Es wird kein Fixum
                                       abgezogen oder zurückgebucht.
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
+
                                   <AlertDialogFooter>
                                     <AlertDialogCancel>
                                       Abbrechen
                                     </AlertDialogCancel>
+
                                     <AlertDialogAction
                                       onClick={() =>
                                         handleRemovePlayer(
@@ -596,6 +669,7 @@ const [newSessionName, setNewSessionName] = useState(() => {
               Kein aktiver Spielabend
             </CardTitle>
           </CardHeader>
+
           <CardContent>
             <form
               onSubmit={handleCreateSession}
@@ -608,10 +682,11 @@ const [newSessionName, setNewSessionName] = useState(() => {
                 >
                   Titel des Spielabends
                 </label>
+
                 <Input
-                id="sessionName"
-                value={newSessionName}
-                readOnly
+                  id="sessionName"
+                  value={newSessionName}
+                  readOnly
                   placeholder="z.B. Freitag 13.05.2026"
                   className="border-border bg-background focus-visible:ring-primary text-center text-lg"
                 />
@@ -631,9 +706,10 @@ const [newSessionName, setNewSessionName] = useState(() => {
         <Collapsible>
           <CollapsibleTrigger asChild>
             <Button variant="outline" className="w-full">
-              Vergangene Spielabende Anzeigen
+              Vergangene Spielabende anzeigen
             </Button>
           </CollapsibleTrigger>
+
           <CollapsibleContent className="space-y-4 mt-4">
             {isPastSessionsLoading ? (
               <Skeleton className="h-24 w-full" />
@@ -662,36 +738,6 @@ const [newSessionName, setNewSessionName] = useState(() => {
   );
 }
 
-function calculateChipDistribution(
-  players: { name: string; chipBalance: number }[],
-  inventory: { value: number; quantity: number }[],
-) {
-  const remaining = [...inventory].sort((a, b) => a.value - b.value);
-
-  return players.map((player) => {
-    let amount = Math.round(player.chipBalance);
-    const distribution: Record<number, number> = {};
-
-    for (const chip of remaining) {
-      const needed = Math.floor(amount / chip.value);
-      const used = Math.min(needed, chip.quantity);
-
-      if (used > 0) {
-        distribution[chip.value] = used;
-        chip.quantity -= used;
-        amount -= used * chip.value;
-      }
-    }
-
-    return {
-      name: player.name,
-      targetAmount: player.chipBalance,
-      distribution,
-      rest: amount,
-    };
-  });
-}
-
 function BuyChipsDialog({
   player,
   onBuy,
@@ -708,7 +754,6 @@ function BuyChipsDialog({
     e.preventDefault();
 
     const parsed = parseFloat(amount.replace(",", "."));
-
     if (isNaN(parsed) || parsed <= 0) return;
 
     onBuy(parsed, () => {
@@ -728,6 +773,7 @@ function BuyChipsDialog({
           Jetons kaufen
         </Button>
       </DialogTrigger>
+
       <DialogContent className="bg-card border-border sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle className="text-primary uppercase tracking-wider">
@@ -743,6 +789,7 @@ function BuyChipsDialog({
             >
               Betrag (€)
             </label>
+
             <Input
               id="amount"
               type="text"
@@ -778,6 +825,7 @@ function BuyChipsDialog({
             >
               Abbrechen
             </Button>
+
             <Button
               type="submit"
               disabled={isPending || !amount}
@@ -841,6 +889,7 @@ function FinalizeSessionDialog({
           Spielabend beenden
         </Button>
       </DialogTrigger>
+
       <DialogContent className="bg-card border-border sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle className="text-primary uppercase tracking-wider">
@@ -857,6 +906,7 @@ function FinalizeSessionDialog({
             {session?.players?.map((p: any) => (
               <div key={p.playerId} className="flex items-center gap-4">
                 <label className="w-40 font-medium">{p.name}</label>
+
                 <Input
                   type="text"
                   inputMode="decimal"
@@ -874,7 +924,9 @@ function FinalizeSessionDialog({
             ))}
 
             {(!session?.players || session.players.length === 0) && (
-              <p className="text-muted-foreground">Keine Teilnehmer vorhanden.</p>
+              <p className="text-muted-foreground">
+                Keine Teilnehmer vorhanden.
+              </p>
             )}
           </div>
 
@@ -887,6 +939,7 @@ function FinalizeSessionDialog({
             >
               Abbrechen
             </Button>
+
             <Button
               type="submit"
               disabled={isPending}
@@ -927,8 +980,11 @@ function NewPlayerInSessionDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="secondary">+ Neuen Spieler anlegen & hinzufügen</Button>
+        <Button variant="secondary">
+          + Neuen Spieler anlegen & hinzufügen
+        </Button>
       </DialogTrigger>
+
       <DialogContent className="bg-card border-border sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle className="text-primary uppercase tracking-wider">
@@ -949,6 +1005,7 @@ function NewPlayerInSessionDialog({
             >
               Name
             </label>
+
             <Input
               id="newPlayerName"
               value={name}
@@ -968,6 +1025,7 @@ function NewPlayerInSessionDialog({
             >
               Abbrechen
             </Button>
+
             <Button
               type="submit"
               disabled={isPending || !name.trim()}
@@ -1072,6 +1130,7 @@ function SessionHistoryCard({
                         </TableHead>
                       </TableRow>
                     </TableHeader>
+
                     <TableBody>
                       {sortedPlayers.map((p) => (
                         <TableRow key={p.playerId}>
