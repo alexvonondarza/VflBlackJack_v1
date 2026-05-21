@@ -74,13 +74,13 @@ router.get("/stats", async (_req, res) => {
     const totalInCirculation =
       bankBalance + totalChipsInPlay;
 
-    res.json({
-      bankBalance,
-      playerCount,
-      totalChipsInPlay,
-      totalFixumPaid,
-      totalInCirculation,
-    });
+res.json({
+  bankBalance,
+  playerCount,
+  totalChipsInPlay,
+  totalFixumPaid,
+  activeTotal: bankBalance + totalChipsInPlay,
+});
   } catch (err) {
     console.error("Failed to get stats", err);
     res.status(500).json({
