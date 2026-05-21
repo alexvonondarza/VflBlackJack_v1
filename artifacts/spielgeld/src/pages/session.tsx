@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   useGetActiveSession,
   useListGameSessions,
@@ -74,7 +74,22 @@ export default function Session() {
   const removePlayer = useRemovePlayerFromSession();
   const buyChips = useBuyChips();
   const createPlayer = useCreatePlayer();
-
+  const [chipInventory, setChipInventory] = useState<{ value: number; quantity: number }[]>([]);
+  const chipDistribution = calculateChipDistribution(
+  sessionPlayers.map((p) => ({
+    name: p.name,
+    chipBalance: Number(p.chipBalance),
+  })),
+  chipInventory,
+);
+  
+  useEffect(() => {
+  fetch(`${import.meta.env.VITE_API_URL}/api/chip-inventory`)
+    .then((res) => res.json())
+    .then(setChipInventory)
+    .catch(() => setChipInventory([]));
+}, []);
+  
 const [newSessionName, setNewSessionName] = useState(() => {
   const now = new Date();
 
@@ -334,7 +349,55 @@ const [newSessionName, setNewSessionName] = useState(() => {
                 </div>
               </CardContent>
             </Card>
+            <Card className="border-border bg-card">
+  <CardHeader>
+    <CardTitle className="text-lg text-primary uppercase tracking-wider">
+      Jeton-Verteilung
+    </CardTitle>
+  </CardHeader>
 
+  <CardContent>
+    {chipDistribution.length === 0 ? (
+      <p className="text-muted-foreground">
+        Keine Spieler für die Verteilung vorhanden.
+      </p>
+    ) : (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Spieler</TableHead>
+            <TableHead className="text-right">Betrag</TableHead>
+            <TableHead>Verteilung</TableHead>
+            <TableHead className="text-right">Rest</TableHead>
+          </TableRow>
+        </TableHeader>
+
+        <TableBody>
+          {chipDistribution.map((row) => (
+            <TableRow key={row.name}>
+              <TableCell>{row.name}</TableCell>
+
+              <TableCell className="text-right">
+                {formatCurrency(row.targetAmount)}
+              </TableCell>
+
+              <TableCell>
+                {Object.entries(row.distribution)
+                  .map(([value, count]) => `${count}× ${value} €`)
+                  .join(", ") || "-"}
+              </TableCell>
+
+              <TableCell className="text-right">
+                {row.rest === 0 ? "-" : formatCurrency(row.rest)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    )}
+  </CardContent>
+</Card>
+            
             <Card className="md:col-span-2 border-border bg-card">
               <CardHeader>
                 <CardTitle className="text-lg text-primary uppercase tracking-wider">
@@ -597,6 +660,36 @@ const [newSessionName, setNewSessionName] = useState(() => {
       </div>
     </div>
   );
+}
+
+function calculateChipDistribution(
+  players: { name: string; chipBalance: number }[],
+  inventory: { value: number; quantity: number }[],
+) {
+  const remaining = [...inventory].sort((a, b) => a.value - b.value);
+
+  return players.map((player) => {
+    let amount = Math.round(player.chipBalance);
+    const distribution: Record<number, number> = {};
+
+    for (const chip of remaining) {
+      const needed = Math.floor(amount / chip.value);
+      const used = Math.min(needed, chip.quantity);
+
+      if (used > 0) {
+        distribution[chip.value] = used;
+        chip.quantity -= used;
+        amount -= used * chip.value;
+      }
+    }
+
+    return {
+      name: player.name,
+      targetAmount: player.chipBalance,
+      distribution,
+      rest: amount,
+    };
+  });
 }
 
 function BuyChipsDialog({
