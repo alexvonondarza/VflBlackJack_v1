@@ -16,7 +16,6 @@ import {
 } from "@workspace/api-zod";
 
 const router = Router();
-
 const REGISTRATION_FIXUM = 5;
 
 async function ensureBank() {
