@@ -38,9 +38,7 @@ router.get("/stats", async (_req, res) => {
     const bank = await ensureBank();
 
     const playerCountResult = await db
-      .select({
-        count: sql<number>`count(*)`,
-      })
+      .select({ count: sql<number>`count(*)` })
       .from(playersTable);
 
     const chipsResult = await db
@@ -49,42 +47,20 @@ router.get("/stats", async (_req, res) => {
       })
       .from(playersTable);
 
-    const fixumResult = await db
-      .select({
-        total: sql<string>`coalesce(sum(${playersTable.fixumPaid}), 0)`,
-      })
-      .from(playersTable);
-
     const bankBalance = Number(bank.balance);
+    const playerCount = Number(playerCountResult[0]?.count ?? 0);
+    const totalChipsInPlay = Number(chipsResult[0]?.total ?? 0);
+    const totalInCirculation = bankBalance + totalChipsInPlay;
 
-    const playerCount = Number(
-      playerCountResult[0]?.count ?? 0,
-    );
-
-    const totalChipsInPlay = Number(
-      chipsResult[0]?.total ?? 0,
-    );
-
-    const totalFixumPaid = Number(
-      fixumResult[0]?.total ?? 0,
-    );
-
-    // Gesamtvermögen im System:
-    // Bank + alle Spielerbestände
-    const totalInCirculation =
-      bankBalance + totalChipsInPlay;
-
-res.json({
-  bankBalance,
-  playerCount,
-  totalChipsInPlay,
-  totalInCirculation: bankBalance + totalChipsInPlay,
-});
+    res.json({
+      bankBalance,
+      playerCount,
+      totalChipsInPlay,
+      totalInCirculation,
+    });
   } catch (err) {
     console.error("Failed to get stats", err);
-    res.status(500).json({
-      error: "Internal server error",
-    });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
