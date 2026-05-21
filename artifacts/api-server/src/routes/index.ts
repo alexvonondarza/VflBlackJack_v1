@@ -3,6 +3,7 @@ import healthRouter from "./health.js";
 import playersRouter from "./players.js";
 import bankRouter from "./bank.js";
 import gameSessionsRouter from "./gameSessions.js";
+import adminRouter from "./admin.js";
 
 const router: IRouter = Router();
 
@@ -10,5 +11,6 @@ router.use(healthRouter);
 router.use(playersRouter);
 router.use(bankRouter);
 router.use(gameSessionsRouter);
+router.use(adminRouter);
 
 export default router;
