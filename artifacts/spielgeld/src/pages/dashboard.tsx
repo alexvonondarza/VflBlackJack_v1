@@ -10,9 +10,11 @@ import {
   useBuyChips,
   useGetActiveSession,
   useGetPlayerHistory,
+  useGetPlayerDeletionLog,
   getGetBankQueryKey,
   getGetStatsQueryKey,
   getListPlayersQueryKey,
+  getGetPlayerDeletionLogQueryKey,
 } from "@workspace/api-client-react";
 import { generatePdf } from "@/lib/exportPdf";
 import { groupFetch } from "@/lib/groupFetch";
@@ -60,6 +62,8 @@ export default function Dashboard() {
   const { data: players, isLoading: isPlayersLoading } = useListPlayers();
   const { data: activeSession } = useGetActiveSession();
   const { data: gameSessions } = useListGameSessions();
+
+  const { data: deletionLog } = useGetPlayerDeletionLog();
 
   const createPlayer = useCreatePlayer();
   const deletePlayer = useDeletePlayer();
@@ -164,6 +168,9 @@ export default function Dashboard() {
           });
           queryClient.invalidateQueries({
             queryKey: getGetStatsQueryKey(),
+          });
+          queryClient.invalidateQueries({
+            queryKey: getGetPlayerDeletionLogQueryKey(),
           });
         },
         onError: () => {
@@ -501,6 +508,73 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+
+        {deletionLog && deletionLog.length > 0 && (
+          <Card className="border-border bg-card">
+            <CardHeader>
+              <CardTitle className="text-lg text-primary uppercase tracking-wider">
+                Gelöschte Spieler (Protokoll)
+              </CardTitle>
+            </CardHeader>
+
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-border hover:bg-transparent">
+                      <TableHead className="text-muted-foreground uppercase tracking-wider font-bold">
+                        Name
+                      </TableHead>
+                      <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold">
+                        Jetons (ausgezahlt)
+                      </TableHead>
+                      <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold">
+                        Fixum (rückgebucht)
+                      </TableHead>
+                      <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold">
+                        Reduktion Im Umlauf
+                      </TableHead>
+                      <TableHead className="text-right text-muted-foreground uppercase tracking-wider font-bold">
+                        Gelöscht am
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+
+                  <TableBody>
+                    {deletionLog.map((entry) => (
+                      <TableRow
+                        key={entry.id}
+                        className="border-border hover:bg-muted/50 transition-colors"
+                      >
+                        <TableCell className="font-medium text-muted-foreground line-through">
+                          {entry.playerName}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {formatCurrency(entry.chipBalance)}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          −{formatCurrency(entry.fixumAmount)}
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-destructive">
+                          −{formatCurrency(entry.chipBalance + entry.fixumAmount)}
+                        </TableCell>
+                        <TableCell className="text-right text-xs text-muted-foreground">
+                          {new Date(entry.deletedAt).toLocaleString("de-DE", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <footer className="flex justify-between items-center pt-2 pb-4 border-t border-border">
           <Link

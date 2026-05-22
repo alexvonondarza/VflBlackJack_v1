@@ -108,6 +108,20 @@ export const GetPlayerHistoryResponseItem = zod.object({
 export const GetPlayerHistoryResponse = zod.array(GetPlayerHistoryResponseItem);
 
 /**
+ * @summary Get audit log of all deleted players
+ */
+export const GetPlayerDeletionLogResponseItem = zod.object({
+  id: zod.number(),
+  playerName: zod.string(),
+  chipBalance: zod.number(),
+  fixumAmount: zod.number(),
+  deletedAt: zod.string(),
+});
+export const GetPlayerDeletionLogResponse = zod.array(
+  GetPlayerDeletionLogResponseItem,
+);
+
+/**
  * @summary Get current bank balance
  */
 export const GetBankResponse = zod.object({

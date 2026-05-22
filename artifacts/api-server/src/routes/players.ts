@@ -6,6 +6,7 @@ import {
   playersTable,
   bankTable,
   balanceSnapshotsTable,
+  playerDeletionLogTable,
 } from "@workspace/db";
 
 import {
@@ -144,6 +145,13 @@ router.delete("/players/:id", async (req: Request, res: Response) => {
       .delete(playersTable)
       .where(and(eq(playersTable.id, parsed.data.id), eq(playersTable.groupId, groupId)));
 
+    await db.insert(playerDeletionLogTable).values({
+      groupId,
+      playerName: player.name,
+      chipBalance: String(cashoutAmount),
+      fixumAmount: String(fixumAmount),
+    });
+
     const [updatedBank] = await db
       .select()
       .from(bankTable)
@@ -253,6 +261,32 @@ router.get("/players/:id/history", async (req: Request, res: Response) => {
     );
   } catch (err) {
     console.error("Failed to get player history", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/player-deletion-log", async (req: Request, res: Response) => {
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
+
+  try {
+    const entries = await db
+      .select()
+      .from(playerDeletionLogTable)
+      .where(eq(playerDeletionLogTable.groupId, groupId))
+      .orderBy(sql`${playerDeletionLogTable.deletedAt} DESC`);
+
+    res.json(
+      entries.map((e) => ({
+        id: e.id,
+        playerName: e.playerName,
+        chipBalance: Number(e.chipBalance),
+        fixumAmount: Number(e.fixumAmount),
+        deletedAt: e.deletedAt.toISOString(),
+      })),
+    );
+  } catch (err) {
+    console.error("Failed to get player deletion log", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });

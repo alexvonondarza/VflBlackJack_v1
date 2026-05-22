@@ -28,6 +28,7 @@ import type {
   GameSessionInput,
   HealthStatus,
   Player,
+  PlayerDeletionLogEntry,
   PlayerInput,
   RemovePlayerResult,
   SessionHistory,
@@ -528,6 +529,81 @@ export function useGetPlayerHistory<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetPlayerHistoryQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get audit log of all deleted players
+ */
+export const getGetPlayerDeletionLogUrl = () => {
+  return `/api/player-deletion-log`;
+};
+
+export const getPlayerDeletionLog = async (
+  options?: RequestInit,
+): Promise<PlayerDeletionLogEntry[]> => {
+  return customFetch<PlayerDeletionLogEntry[]>(getGetPlayerDeletionLogUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPlayerDeletionLogQueryKey = () => {
+  return [`/api/player-deletion-log`] as const;
+};
+
+export const getGetPlayerDeletionLogQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPlayerDeletionLog>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPlayerDeletionLog>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPlayerDeletionLogQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPlayerDeletionLog>>
+  > = ({ signal }) => getPlayerDeletionLog({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPlayerDeletionLog>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPlayerDeletionLogQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPlayerDeletionLog>>
+>;
+export type GetPlayerDeletionLogQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get audit log of all deleted players
+ */
+
+export function useGetPlayerDeletionLog<
+  TData = Awaited<ReturnType<typeof getPlayerDeletionLog>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPlayerDeletionLog>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPlayerDeletionLogQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

@@ -19,6 +19,7 @@ export * from "./gameSessionInput";
 export * from "./gameSessionStatus";
 export * from "./healthStatus";
 export * from "./player";
+export * from "./playerDeletionLogEntry";
 export * from "./playerFinalBalance";
 export * from "./playerInput";
 export * from "./removePlayerResult";

@@ -135,6 +135,14 @@ export interface SessionPlayerSnapshot {
   diff: number;
 }
 
+export interface PlayerDeletionLogEntry {
+  id: number;
+  playerName: string;
+  chipBalance: number;
+  fixumAmount: number;
+  deletedAt: string;
+}
+
 export type SessionHistoryStatus =
   (typeof SessionHistoryStatus)[keyof typeof SessionHistoryStatus];
 
