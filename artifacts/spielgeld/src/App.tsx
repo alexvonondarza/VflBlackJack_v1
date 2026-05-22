@@ -35,15 +35,15 @@ function Navigation() {
             </span>
           )}
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             onClick={() => {
               clearGroup();
               queryClient.clear();
             }}
-            className="text-xs text-muted-foreground hover:text-foreground uppercase tracking-wider"
+            className="text-xs uppercase tracking-wider"
           >
-            Gruppe wechseln
+            ✕ Exit
           </Button>
         </div>
       </div>
