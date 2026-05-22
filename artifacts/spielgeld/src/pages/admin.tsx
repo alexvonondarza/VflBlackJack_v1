@@ -23,6 +23,15 @@ type AdminPlayer = {
   createdAt: string;
 };
 
+const DEFAULT_CHIPS = [
+  { value: 0.05, quantity: "" },
+  { value: 0.10, quantity: "" },
+  { value: 0.25, quantity: "" },
+  { value: 0.50, quantity: "" },
+  { value: 1.00, quantity: "" },
+  { value: 5.00, quantity: "" },
+];
+
 async function adminFetch<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
   return customFetch<T>(`/api${path}`, {
     ...options,
@@ -54,10 +63,10 @@ export default function Admin() {
       if (Array.isArray(data) && data.length > 0) {
         setChips(data.map((c) => ({ value: c.value, quantity: c.quantity })));
       } else {
-        setChips([{ value: "", quantity: "" }]);
+        setChips(DEFAULT_CHIPS);
       }
     } catch {
-      setChips([{ value: "", quantity: "" }]);
+      setChips(DEFAULT_CHIPS);
     }
   };
 
