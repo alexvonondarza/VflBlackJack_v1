@@ -11,6 +11,7 @@ type Section = {
 
 const SECTIONS: Section[] = [
   { id: "ueberblick", title: "Überblick", emoji: "🃏" },
+  { id: "mandanten", title: "Gruppen & Mandanten", emoji: "🏠" },
   { id: "erste-schritte", title: "Erste Schritte", emoji: "🚀" },
   { id: "spieler", title: "Spieler verwalten", emoji: "👤" },
   { id: "spielabend", title: "Spielabend starten", emoji: "🎲" },
@@ -19,6 +20,7 @@ const SECTIONS: Section[] = [
   { id: "inventar", title: "Chip-Inventar", emoji: "🗃️" },
   { id: "beenden", title: "Spielabend beenden", emoji: "🏁" },
   { id: "admin", title: "Administration", emoji: "⚙️" },
+  { id: "superadmin", title: "Superadmin", emoji: "🔑" },
   { id: "deployment", title: "Deployment", emoji: "🌐" },
   { id: "faq", title: "Häufige Fragen", emoji: "❓" },
 ];
@@ -187,6 +189,56 @@ export default function Guide() {
               </Card>
             ))}
           </div>
+
+          {/* ───── MANDANTEN ───── */}
+          <SectionHeading id="mandanten" emoji="🏠" title="Gruppen & Mandanten" />
+          <p className="text-muted-foreground text-sm leading-relaxed mb-4">
+            VflBlackJack unterstützt mehrere unabhängige Gruppen auf derselben
+            App-Instanz. Jede Gruppe hat ihre eigenen Spieler, Bank, Chip-Inventar
+            und Spielabend-Historie — vollständig voneinander getrennt.
+          </p>
+
+          <div className="space-y-3 mb-4">
+            <div className="bg-card border border-border rounded-md p-4">
+              <div className="font-bold text-sm text-foreground mb-1">
+                Gruppe auswählen / anlegen
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Beim Öffnen der App erscheint die Gruppenauswahl. Einfach den
+                Gruppennamen eingeben und auf <strong>„Weiter"</strong> klicken.
+                Existiert die Gruppe bereits, wird sie automatisch erkannt. Ist
+                der Name neu, wird eine neue Gruppe angelegt.
+              </p>
+            </div>
+
+            <div className="bg-card border border-border rounded-md p-4">
+              <div className="font-bold text-sm text-foreground mb-1">
+                Gruppe wechseln
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Oben rechts im Menü auf das <strong>✕ Exit</strong>-Symbol
+                klicken. Die App kehrt zur Gruppenauswahl zurück. Alle Daten
+                der vorherigen Gruppe bleiben gespeichert.
+              </p>
+            </div>
+
+            <div className="bg-card border border-border rounded-md p-4">
+              <div className="font-bold text-sm text-foreground mb-1">
+                Datentrennung
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Spieler, Bank, Chip-Inventar und Spielabende einer Gruppe sind
+                für andere Gruppen unsichtbar. Die Gruppen-ID wird bei jedem
+                API-Request automatisch mitgeschickt.
+              </p>
+            </div>
+          </div>
+
+          <Tip>
+            Empfehlung: Pro Stammtisch eine eigene Gruppe anlegen, z. B.
+            „VfL Stammtisch" und „Privat". So lassen sich verschiedene
+            Spielerkreise sauber trennen.
+          </Tip>
 
           {/* ───── ERSTE SCHRITTE ───── */}
           <SectionHeading
@@ -622,6 +674,74 @@ export default function Guide() {
           <Warning>
             Der komplette Reset kann nicht rückgängig gemacht werden. Alle
             Daten — Spieler, Bank, Spielabende — werden dauerhaft gelöscht.
+          </Warning>
+
+          {/* ───── SUPERADMIN ───── */}
+          <SectionHeading id="superadmin" emoji="🔑" title="Superadmin" />
+          <p className="text-muted-foreground text-sm leading-relaxed mb-4">
+            Der Superadmin-Bereich gibt einen Überblick über{" "}
+            <strong className="text-foreground">alle Gruppen</strong> auf der
+            App-Instanz und erlaubt es, einzelne Gruppen vollständig zu löschen.
+            Er ist nur für den Betreiber der App gedacht.
+          </p>
+
+          <SubHeading>Zugang</SubHeading>
+          <div className="space-y-2 text-sm text-muted-foreground mb-4">
+            <div className="flex items-start gap-2">
+              <StepBadge n={1} />
+              <span>
+                Auf der Startseite (Gruppenauswahl) ganz unten auf{" "}
+                <strong className="text-foreground">„Superadmin"</strong> klicken
+              </span>
+            </div>
+            <div className="flex items-start gap-2">
+              <StepBadge n={2} />
+              <span>
+                Passwort eingeben — Standard:{" "}
+                <code className="text-primary">superadmin</code>
+              </span>
+            </div>
+            <div className="flex items-start gap-2">
+              <StepBadge n={3} />
+              <span>
+                Alle Gruppen werden aufgelistet mit Spieleranzahl, Bankstand
+                und Erstellungsdatum
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-3 mb-4">
+            <div className="bg-card border border-border rounded-md p-4">
+              <div className="font-bold text-sm text-foreground mb-1">
+                Gruppe löschen
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Über den roten <strong>„Löschen"</strong>-Button neben einer
+                Gruppe öffnet sich ein Bestätigungs-Dialog. Nach Bestätigung
+                werden alle Daten dieser Gruppe unwiderruflich gelöscht —
+                Spieler, Bank, Spielabende und Historien.
+              </p>
+            </div>
+
+            <div className="bg-card border border-border rounded-md p-4">
+              <div className="font-bold text-sm text-foreground mb-1">
+                Passwort ändern
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Das Superadmin-Passwort wird über die Umgebungsvariable{" "}
+                <code className="text-primary">SUPERADMIN_PASSWORD</code> auf
+                dem Backend (Render) gesetzt. Ist die Variable nicht gesetzt,
+                gilt der Standardwert{" "}
+                <code className="text-primary">superadmin</code>.
+              </p>
+            </div>
+          </div>
+
+          <Warning>
+            Das Standard-Passwort <code>superadmin</code> sollte für
+            produktive Deployments über die{" "}
+            <code>SUPERADMIN_PASSWORD</code>-Umgebungsvariable auf Render
+            geändert werden.
           </Warning>
 
           {/* ───── DEPLOYMENT ───── */}
