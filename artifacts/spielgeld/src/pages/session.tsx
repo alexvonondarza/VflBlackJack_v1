@@ -17,7 +17,7 @@ import {
   getGetBankQueryKey,
   getGetStatsQueryKey,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -111,7 +111,7 @@ function calculateChipDistribution(
       const fairShare = Math.floor(avail / (n - i));
       const target = Math.min(SMALL_CHIP_TARGET_MAX, fairShare);
       const give = Math.min(target, canAfford, avail);
-      if (give >= SMALL_CHIP_TARGET_MIN || (fairShare < SMALL_CHIP_TARGET_MIN && give > 0)) {
+      if (give > 0) {
         distributions[i][denomCents] = give;
         remainders[i] -= give * denomCents;
         avail -= give;
@@ -178,7 +178,19 @@ export default function Session() {
   const buyChips = useBuyChips();
   const createPlayer = useCreatePlayer();
 
-  const [chipInventory, setChipInventory] = useState<ChipInventoryItem[]>([]);
+  const { data: chipInventory = [] } = useQuery<ChipInventoryItem[]>({
+    queryKey: ["chip-inventory"],
+    queryFn: () =>
+      fetch(`${import.meta.env.VITE_API_URL ?? ""}/api/chip-inventory`).then(
+        (res) => {
+          if (!res.ok) throw new Error("chip-inventory fetch failed");
+          return res.json() as Promise<ChipInventoryItem[]>;
+        },
+      ),
+    retry: 5,
+    retryDelay: 1000,
+    staleTime: 30_000,
+  });
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<number[]>([]);
   const [newSessionName, setNewSessionName] = useState(() => {
     const now = new Date();
@@ -192,13 +204,6 @@ export default function Session() {
     });
   });
 
-  useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/api/chip-inventory`)
-      .then((res) => res.json())
-      .then(setChipInventory)
-      .catch(() => setChipInventory([]));
-
-  }, []);
 
   const formatCurrency = (val: number) => {
     return val.toFixed(2).replace(".", ",") + " €";
