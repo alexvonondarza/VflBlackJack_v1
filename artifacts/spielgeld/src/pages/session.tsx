@@ -960,7 +960,7 @@ function BuyChipsDialog({
           </div>
 
           <div className="grid grid-cols-3 gap-2">
-            {[5, 10, 20, 50, 100].map((preset) => (
+            {[2, 5, 7, 10].map((preset) => (
               <Button
                 key={preset}
                 type="button"
