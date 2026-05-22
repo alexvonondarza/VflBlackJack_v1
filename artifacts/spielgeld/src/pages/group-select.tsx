@@ -3,6 +3,7 @@ import { useGroup } from "@/contexts/GroupContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { customFetch } from "@workspace/api-client-react";
 
 export default function GroupSelect() {
   const { setGroup } = useGroup();
@@ -17,17 +18,14 @@ export default function GroupSelect() {
 
     setIsLoading(true);
     try {
-      const res = await fetch("/api/groups/find-or-create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Server error");
-      }
-
-      const group = await res.json();
+      const group = await customFetch<{ id: number; name: string }>(
+        "/api/groups/find-or-create",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: trimmed }),
+        },
+      );
       setGroup(group.id, group.name);
     } catch {
       toast({
