@@ -73,10 +73,8 @@ type ChipDistributionRow = {
 function calculateChipDistribution(
   players: { name: string; chipBalance: number }[],
   inventory: ChipInventoryItem[],
-  bankBalance: number,
-  bankChipPercentage: number,
+  bankTarget: number,
 ): ChipDistributionRow[] {
-  const bankTarget = Math.round(bankBalance * (bankChipPercentage / 100));
   const allParticipants = [
     ...players,
     { name: "Bank", chipBalance: bankTarget },
@@ -155,7 +153,6 @@ export default function Session() {
   const createPlayer = useCreatePlayer();
 
   const [chipInventory, setChipInventory] = useState<ChipInventoryItem[]>([]);
-  const [bankChipPercentage, setBankChipPercentage] = useState<number>(10);
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<number[]>([]);
   const [newSessionName, setNewSessionName] = useState(() => {
     const now = new Date();
@@ -175,14 +172,6 @@ export default function Session() {
       .then(setChipInventory)
       .catch(() => setChipInventory([]));
 
-    fetch(`${import.meta.env.VITE_API_URL}/api/settings`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (typeof data.bankChipPercentage === "number") {
-          setBankChipPercentage(data.bankChipPercentage);
-        }
-      })
-      .catch(() => {});
   }, []);
 
   const formatCurrency = (val: number) => {
@@ -397,14 +386,27 @@ export default function Session() {
       0,
     );
 
+    const sessionPlayerIds2 = new Set(sessionPlayers.map((p) => p.playerId));
+    const nonSessionPlayers = (allPlayers || []).filter(
+      (p) => !sessionPlayerIds2.has(p.id),
+    );
+    const sessionFixums = sessionPlayers.reduce(
+      (sum, p) => sum + Number(p.fixumPaid),
+      0,
+    );
+    const nonSessionChips = nonSessionPlayers.reduce(
+      (sum, p) => sum + Number(p.chipBalance),
+      0,
+    );
+    const bankTarget = Math.round(sessionFixums + nonSessionChips);
+
     const chipDistribution = calculateChipDistribution(
       sessionPlayers.map((p) => ({
         name: p.name,
         chipBalance: Number(p.chipBalance),
       })),
       chipInventory,
-      bank?.balance ?? 0,
-      bankChipPercentage,
+      bankTarget,
     );
 
     return (
@@ -560,7 +562,9 @@ export default function Session() {
                           {row.isBank ? (
                             <span className="flex items-center gap-2">
                               <Badge className="bg-primary text-primary-foreground text-xs">Bank</Badge>
-                              <span className="text-muted-foreground text-xs">({bankChipPercentage}% von Bankbestand)</span>
+                              <span className="text-muted-foreground text-xs">
+                                Fixums ({formatCurrency(sessionFixums)}) + Nicht-Teilnehmer ({formatCurrency(nonSessionChips)})
+                              </span>
                             </span>
                           ) : (
                             row.name
