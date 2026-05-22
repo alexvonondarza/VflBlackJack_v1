@@ -3,6 +3,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { customFetch } from "@workspace/api-client-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,26 +39,15 @@ export default function SuperAdmin() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const res = await fetch("/api/superadmin/groups", {
+      const data = await customFetch<Group[]>("/api/superadmin/groups", {
         headers: { "x-superadmin-password": password },
       });
-
-      if (!res.ok) {
-        toast({
-          title: "Fehler",
-          description: "Ungültiges Passwort.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const data = await res.json();
       setGroups(data);
       setIsLoggedIn(true);
     } catch {
       toast({
         title: "Fehler",
-        description: "Verbindungsfehler.",
+        description: "Ungültiges Passwort oder Verbindungsfehler.",
         variant: "destructive",
       });
     } finally {
@@ -67,12 +57,10 @@ export default function SuperAdmin() {
 
   const handleRefresh = async () => {
     try {
-      const res = await fetch("/api/superadmin/groups", {
+      const data = await customFetch<Group[]>("/api/superadmin/groups", {
         headers: { "x-superadmin-password": password },
       });
-      if (res.ok) {
-        setGroups(await res.json());
-      }
+      setGroups(data);
     } catch {
       /* ignore */
     }
@@ -80,15 +68,10 @@ export default function SuperAdmin() {
 
   const handleDelete = async (id: number) => {
     try {
-      const res = await fetch(`/api/superadmin/groups/${id}`, {
+      await customFetch(`/api/superadmin/groups/${id}`, {
         method: "DELETE",
         headers: { "x-superadmin-password": password },
       });
-
-      if (!res.ok) {
-        throw new Error("Delete failed");
-      }
-
       toast({ title: "Gruppe gelöscht" });
       await handleRefresh();
     } catch {

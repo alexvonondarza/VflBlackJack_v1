@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { customFetch } from "@workspace/api-client-react";
 
 type AdminPlayer = {
   id: number;
@@ -22,25 +23,14 @@ type AdminPlayer = {
   createdAt: string;
 };
 
-async function adminFetch(path: string, options: RequestInit = {}) {
-  const groupId = localStorage.getItem("groupId");
-  const response = await fetch(`/api${path}`, {
+async function adminFetch<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
+  return customFetch<T>(`/api${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      ...(groupId ? { "x-group-id": groupId } : {}),
       ...(options.headers || {}),
     },
   });
-
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
-
-  if (!response.ok) {
-    throw new Error(data?.error || "Request failed");
-  }
-
-  return data;
 }
 
 export default function Admin() {
@@ -60,13 +50,9 @@ export default function Admin() {
 
   const loadChipInventory = async () => {
     try {
-      const groupId = localStorage.getItem("groupId");
-      const res = await fetch("/api/chip-inventory", {
-        headers: groupId ? { "x-group-id": groupId } : {},
-      });
-      const data = await res.json();
+      const data = await customFetch<{ value: number; quantity: number }[]>("/api/chip-inventory");
       if (Array.isArray(data) && data.length > 0) {
-        setChips(data.map((c: { value: number; quantity: number }) => ({ value: c.value, quantity: c.quantity })));
+        setChips(data.map((c) => ({ value: c.value, quantity: c.quantity })));
       } else {
         setChips([{ value: "", quantity: "" }]);
       }
