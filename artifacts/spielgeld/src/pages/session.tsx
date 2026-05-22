@@ -70,6 +70,9 @@ type ChipDistributionRow = {
   isBank?: boolean;
 };
 
+const SMALL_CHIP_MIN = 10;
+const SMALL_CHIP_MAX = 20;
+
 function calculateChipDistribution(
   players: { name: string; chipBalance: number }[],
   inventory: ChipInventoryItem[],
@@ -79,51 +82,74 @@ function calculateChipDistribution(
     ...players,
     { name: "Bank", chipBalance: bankTarget },
   ];
+  const n = allParticipants.length;
 
   const sortedChips = [...inventory].sort((a, b) => a.value - b.value);
   const remainders = allParticipants.map((p) => Math.round(Number(p.chipBalance)));
   const distributions: Record<number, number>[] = allParticipants.map(() => ({}));
 
-  for (const chip of sortedChips) {
+  sortedChips.forEach((chip, chipIndex) => {
     let available = chip.quantity;
-    if (available === 0) continue;
+    if (available === 0) return;
 
-    const demanded = remainders.map((rem) => Math.floor(rem / chip.value));
-    const totalDemanded = demanded.reduce((a, b) => a + b, 0);
-    if (totalDemanded === 0) continue;
+    if (chipIndex === 0 && n > 0) {
+      // Smallest denomination: target 10–20 chips per participant.
+      // If there are not enough for 10 per participant, distribute evenly.
+      const evenShare = Math.floor(available / n);
+      const target =
+        evenShare >= SMALL_CHIP_MIN
+          ? Math.min(evenShare, SMALL_CHIP_MAX)
+          : evenShare;
 
-    if (totalDemanded <= available) {
+      let remainingAvailable = available;
       allParticipants.forEach((_, i) => {
-        if (demanded[i] > 0) {
-          distributions[i][chip.value] = demanded[i];
-          remainders[i] -= demanded[i] * chip.value;
+        const canAfford = Math.floor(remainders[i] / chip.value);
+        const give = Math.min(target, canAfford, remainingAvailable);
+        if (give > 0) {
+          distributions[i][chip.value] = give;
+          remainders[i] -= give * chip.value;
+          remainingAvailable -= give;
         }
       });
     } else {
-      allParticipants.forEach((_, i) => {
-        if (demanded[i] > 0) {
-          const give = Math.floor((demanded[i] / totalDemanded) * available);
-          if (give > 0) {
-            distributions[i][chip.value] = give;
-            remainders[i] -= give * chip.value;
-            available -= give;
+      // All other denominations: cover the remaining balance (smallest first).
+      const demanded = remainders.map((rem) => Math.floor(rem / chip.value));
+      const totalDemanded = demanded.reduce((a, b) => a + b, 0);
+      if (totalDemanded === 0) return;
+
+      if (totalDemanded <= available) {
+        allParticipants.forEach((_, i) => {
+          if (demanded[i] > 0) {
+            distributions[i][chip.value] = demanded[i];
+            remainders[i] -= demanded[i] * chip.value;
           }
-        }
-      });
-      const byDemand = allParticipants
-        .map((_, i) => i)
-        .sort((a, b) => demanded[b] - demanded[a]);
-      for (const idx of byDemand) {
-        if (available <= 0) break;
-        if (remainders[idx] >= chip.value) {
-          distributions[idx][chip.value] =
-            (distributions[idx][chip.value] || 0) + 1;
-          remainders[idx] -= chip.value;
-          available -= 1;
+        });
+      } else {
+        allParticipants.forEach((_, i) => {
+          if (demanded[i] > 0) {
+            const give = Math.floor((demanded[i] / totalDemanded) * available);
+            if (give > 0) {
+              distributions[i][chip.value] = give;
+              remainders[i] -= give * chip.value;
+              available -= give;
+            }
+          }
+        });
+        const byDemand = allParticipants
+          .map((_, i) => i)
+          .sort((a, b) => demanded[b] - demanded[a]);
+        for (const idx of byDemand) {
+          if (available <= 0) break;
+          if (remainders[idx] >= chip.value) {
+            distributions[idx][chip.value] =
+              (distributions[idx][chip.value] || 0) + 1;
+            remainders[idx] -= chip.value;
+            available -= 1;
+          }
         }
       }
     }
-  }
+  });
 
   return allParticipants.map((participant, i) => ({
     name: participant.name,
