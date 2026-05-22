@@ -1,0 +1,9 @@
+[build]
+  base = "."
+  command = "pnpm --filter @workspace/spielgeld run build"
+  publish = "artifacts/spielgeld/dist/public"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
