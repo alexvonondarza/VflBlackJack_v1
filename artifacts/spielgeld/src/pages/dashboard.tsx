@@ -81,11 +81,9 @@ export default function Dashboard() {
 
       const sessionsWithDetails = await Promise.all(
         endedSessions.map(async (s) => {
-          const response = await groupFetch(
-            `/api/game-sessions/${s.id}/history`,
-          );
-
-          if (!response.ok) {
+          try {
+            return await groupFetch(`/api/game-sessions/${s.id}/history`);
+          } catch {
             return {
               name: s.name,
               endedAt: s.endedAt,
@@ -95,8 +93,6 @@ export default function Dashboard() {
               players: [],
             };
           }
-
-          return await response.json();
         }),
       );
 
