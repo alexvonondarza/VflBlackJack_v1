@@ -435,6 +435,18 @@ export default function Session() {
       bankTarget,
     );
 
+    // Compute how many chips remain after the proposed distribution
+    const remainingInventory: Record<number, number> = {};
+    for (const chip of chipInventory) {
+      remainingInventory[Number(chip.value)] = chip.quantity;
+    }
+    for (const row of chipDistribution) {
+      for (const [valueStr, count] of Object.entries(row.distribution)) {
+        const v = Number(valueStr);
+        remainingInventory[v] = (remainingInventory[v] ?? 0) - count;
+      }
+    }
+
     return (
       <div className="p-4 md:p-8 font-mono">
         <div className="max-w-6xl mx-auto space-y-8">
@@ -612,6 +624,54 @@ export default function Session() {
                     ))}
                   </TableBody>
                 </Table>
+              )}
+
+              {chipInventory.length > 0 && chipDistribution.length > 0 && (
+                <div className="mt-6 pt-4 border-t border-border">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
+                    Verbleibend im Vorrat nach Verteilung
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    {Object.entries(remainingInventory)
+                      .sort(([a], [b]) => Number(a) - Number(b))
+                      .map(([value, remaining]) => {
+                        const total = chipInventory.find(
+                          (c) => Number(c.value) === Number(value),
+                        )?.quantity ?? 0;
+                        const used = total - remaining;
+                        const pctUsed = total > 0 ? used / total : 0;
+                        const isLow = remaining < 10;
+                        return (
+                          <div
+                            key={value}
+                            className={`flex flex-col items-center border rounded-md px-3 py-2 min-w-[72px] ${
+                              isLow
+                                ? "border-red-500/50 bg-red-500/10"
+                                : "border-border bg-muted/30"
+                            }`}
+                          >
+                            <span className="text-xs text-muted-foreground mb-1">
+                              {Number(value).toFixed(2).replace(".", ",")} €
+                            </span>
+                            <span
+                              className={`text-lg font-bold ${isLow ? "text-red-400" : "text-primary"}`}
+                            >
+                              {remaining}
+                            </span>
+                            <div className="w-full bg-muted rounded-full h-1 mt-1">
+                              <div
+                                className={`h-1 rounded-full transition-all ${isLow ? "bg-red-400" : "bg-primary"}`}
+                                style={{ width: `${Math.max(0, (1 - pctUsed) * 100)}%` }}
+                              />
+                            </div>
+                            <span className="text-[10px] text-muted-foreground mt-1">
+                              {used} vergeben
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>
