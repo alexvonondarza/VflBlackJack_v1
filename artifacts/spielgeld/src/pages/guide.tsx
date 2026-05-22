@@ -314,7 +314,7 @@ export default function Guide() {
           </div>
 
           <SubHeading>Spieler auszahlen & löschen</SubHeading>
-          <div className="text-muted-foreground text-sm leading-relaxed">
+          <div className="text-muted-foreground text-sm leading-relaxed mb-3">
             Mit{" "}
             <Badge
               variant="outline"
@@ -322,14 +322,55 @@ export default function Guide() {
             >
               Auszahlen & Löschen
             </Badge>{" "}
-            wird der aktuelle Chip-Kontostand des Spielers an die Bank
-            zurückgebucht und das Profil endgültig entfernt. Dies ist
-            unwiderruflich.
+            wird ein Spieler vollständig aus dem System entfernt. Der
+            Bestätigungs-Dialog zeigt drei Werte:
           </div>
+          <div className="bg-card border border-border rounded-md p-4 text-sm space-y-2 mb-3">
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Jetonbetrag (Auszahlung)</span>
+              <span className="text-foreground font-bold">→ wird an den Spieler ausgezahlt</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Fixum (wird aus Bank entfernt)</span>
+              <span className="text-foreground font-bold">→ Bank reduziert sich</span>
+            </div>
+            <div className="flex justify-between items-center border-t border-border pt-2">
+              <span className="text-muted-foreground">Reduktion Im Umlauf</span>
+              <span className="text-destructive font-bold">→ Summe beider Beträge</span>
+            </div>
+          </div>
+          <Note>
+            Das Fixum wird aus der Bank entfernt, weil der Spieler dauerhaft
+            ausscheidet. Der Jetonbetrag verschwindet aus dem Umlauf, da die
+            Chips zurückgegeben werden. Beides zusammen ergibt die Gesamtreduktion
+            des „Im Umlauf"-Betrags.
+          </Note>
           <Warning>
             Ein gelöschter Spieler kann nicht wiederhergestellt werden. Die
             Historien-Einträge bleiben aber im System erhalten.
           </Warning>
+
+          <SubHeading>Gelöschte Spieler — Protokoll</SubHeading>
+          <div className="text-muted-foreground text-sm leading-relaxed">
+            Sobald der erste Spieler gelöscht wurde, erscheint auf der Übersicht
+            unterhalb der Spielerliste automatisch eine Tabelle{" "}
+            <strong className="text-foreground">„Gelöschte Spieler (Protokoll)"</strong>.
+            Sie dokumentiert jeden Löschvorgang dauerhaft mit:
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+            {[
+              { label: "Name", desc: "Durchgestrichener Spielername" },
+              { label: "Jetons", desc: "Ausgezahlter Chip-Betrag" },
+              { label: "Fixum", desc: "Rückgebuchter Fixum-Betrag" },
+              { label: "Im Umlauf", desc: "Gesamtreduktion des Umlaufs" },
+              { label: "Datum/Uhrzeit", desc: "Zeitstempel des Löschvorgangs" },
+            ].map((item) => (
+              <div key={item.label} className="bg-card border border-border rounded-md p-3">
+                <div className="font-bold text-xs text-primary mb-0.5">{item.label}</div>
+                <div className="text-xs text-muted-foreground">{item.desc}</div>
+              </div>
+            ))}
+          </div>
 
           {/* ───── SPIELABEND ───── */}
           <SectionHeading
@@ -729,8 +770,8 @@ export default function Guide() {
               </div>
               <p className="text-sm text-muted-foreground">
                 Das Superadmin-Passwort wird über die Umgebungsvariable{" "}
-                <code className="text-primary">SUPERADMIN_PASSWORD</code> auf
-                dem Backend (Render) gesetzt. Ist die Variable nicht gesetzt,
+                <code className="text-primary">SUPERADMIN_PASSWORD</code> in
+                den Replit-Secrets gesetzt. Ist die Variable nicht gesetzt,
                 gilt der Standardwert{" "}
                 <code className="text-primary">superadmin</code>.
               </p>
@@ -740,8 +781,8 @@ export default function Guide() {
           <Warning>
             Das Standard-Passwort <code>superadmin</code> sollte für
             produktive Deployments über die{" "}
-            <code>SUPERADMIN_PASSWORD</code>-Umgebungsvariable auf Render
-            geändert werden.
+            <code>SUPERADMIN_PASSWORD</code>-Umgebungsvariable in den
+            Replit-Secrets geändert werden.
           </Warning>
 
           {/* ───── DEPLOYMENT ───── */}
@@ -751,97 +792,85 @@ export default function Guide() {
             title="Deployment"
           />
           <p className="text-muted-foreground text-sm leading-relaxed mb-4">
-            Die App läuft aufgeteilt auf zwei Dienste:{" "}
-            <strong className="text-foreground">Netlify</strong> hostet das
-            Frontend (React), <strong className="text-foreground">Render</strong>{" "}
-            betreibt das Backend (API + Datenbank).
+            Die App läuft vollständig auf{" "}
+            <strong className="text-foreground">Replit</strong> — Frontend,
+            Backend und Datenbank sind in einer einzigen Umgebung zusammengefasst.
+            Kein separater Hosting-Dienst erforderlich.
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <div className="bg-card border border-border rounded-md p-4">
-              <div className="font-bold text-sm text-primary mb-1">Frontend — Netlify</div>
+              <div className="font-bold text-sm text-primary mb-1">Frontend</div>
               <p className="text-sm text-muted-foreground">
-                Statische React-App. Wird bei jedem GitHub-Push automatisch neu gebaut.
+                React + Vite, läuft auf Port 5000. Im Dev-Modus mit Hot-Reload,
+                in Production als statisches Build.
               </p>
             </div>
             <div className="bg-card border border-border rounded-md p-4">
-              <div className="font-bold text-sm text-primary mb-1">Backend — Render</div>
+              <div className="font-bold text-sm text-primary mb-1">Backend</div>
               <p className="text-sm text-muted-foreground">
-                Express-Server + PostgreSQL-Datenbank. Läuft dauerhaft als Web Service.
+                Express-Server auf Port 3000. Das Frontend leitet alle{" "}
+                <code className="text-primary">/api</code>-Aufrufe automatisch
+                weiter (Vite-Proxy).
+              </p>
+            </div>
+            <div className="bg-card border border-border rounded-md p-4">
+              <div className="font-bold text-sm text-primary mb-1">Datenbank</div>
+              <p className="text-sm text-muted-foreground">
+                PostgreSQL von Replit, automatisch verbunden über{" "}
+                <code className="text-primary">DATABASE_URL</code>.
               </p>
             </div>
           </div>
 
-          <SubHeading>Schritt 1 — Backend-URL in Netlify eintragen</SubHeading>
-          <p className="text-muted-foreground text-sm mb-3">
-            Damit das Frontend weiß, wo das Backend läuft, muss die Render-URL
-            als Umgebungsvariable gesetzt werden:
-          </p>
-          <div className="space-y-2 text-sm text-muted-foreground">
+          <SubHeading>Veröffentlichen (Publish)</SubHeading>
+          <div className="space-y-2 text-sm text-muted-foreground mb-4">
             <div className="flex items-start gap-2">
               <StepBadge n={1} />
               <span>
-                In Netlify: <strong className="text-foreground">Site Settings → Environment Variables</strong>
+                In Replit oben rechts auf{" "}
+                <strong className="text-foreground">„Deploy"</strong> klicken
               </span>
             </div>
             <div className="flex items-start gap-2">
               <StepBadge n={2} />
               <span>
-                Variable hinzufügen:{" "}
-                <code className="text-primary">VITE_API_URL</code> ={" "}
-                <code className="text-primary">https://deine-app.onrender.com</code>
+                Replit baut die App automatisch und stellt sie unter einer{" "}
+                <code className="text-primary">.replit.app</code>-Domain bereit
               </span>
             </div>
             <div className="flex items-start gap-2">
               <StepBadge n={3} />
               <span>
-                Neuen Deploy auslösen — danach sind alle API-Aufrufe korrekt geroutet.
+                Die Produktions-Datenbank wird beim ersten Publish automatisch
+                mit dem aktuellen Schema synchronisiert
               </span>
             </div>
           </div>
 
-          <SubHeading>Schritt 2 — SPA-Routing</SubHeading>
-          <p className="text-muted-foreground text-sm mb-2">
-            Die Datei <code className="text-primary">netlify.toml</code> im
-            Repo-Root stellt sicher, dass alle Seiten (z. B.{" "}
-            <code className="text-primary">/superadmin</code>,{" "}
-            <code className="text-primary">/session</code>) auch bei direktem
-            Aufruf oder Seiten-Reload funktionieren.
-          </p>
-          <CodeBlock>{`# netlify.toml
-[build]
-  command = "pnpm --filter @workspace/spielgeld run build"
-  publish = "artifacts/spielgeld/dist/public"
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200`}</CodeBlock>
-
-          <SubHeading>Schritt 3 — Render: DATABASE_URL</SubHeading>
-          <p className="text-muted-foreground text-sm mb-2">
-            Das Backend braucht eine PostgreSQL-Datenbank. In Render unter{" "}
-            <strong className="text-foreground">Environment → Environment Variables</strong>{" "}
-            die Variable <code className="text-primary">DATABASE_URL</code> auf
-            die Render-Postgres-Connection-String setzen.
-          </p>
-
-          <div className="bg-card border border-border rounded-md p-4 mt-4">
-            <div className="font-bold text-sm text-primary mb-2">
-              Zusammenfassung
-            </div>
-            <div className="space-y-1 text-sm text-muted-foreground font-mono">
-              <div>1. <span className="text-foreground">Render → Web Service starten (Backend)</span></div>
-              <div>2. <span className="text-foreground">Render → DATABASE_URL setzen</span></div>
-              <div>3. <span className="text-foreground">Netlify → VITE_API_URL = Render-URL</span></div>
-              <div>4. <span className="text-foreground">Netlify → Deploy starten → fertig ✓</span></div>
+          <SubHeading>Umgebungsvariablen</SubHeading>
+          <div className="bg-card border border-border rounded-md p-4 text-sm">
+            <div className="space-y-2 text-muted-foreground font-mono">
+              <div className="flex gap-3">
+                <code className="text-primary shrink-0">DATABASE_URL</code>
+                <span className="text-muted-foreground">Automatisch von Replit gesetzt</span>
+              </div>
+              <div className="flex gap-3">
+                <code className="text-primary shrink-0">SUPERADMIN_PASSWORD</code>
+                <span className="text-muted-foreground">Optional — Standard: superadmin</span>
+              </div>
+              <div className="flex gap-3">
+                <code className="text-primary shrink-0">PORT</code>
+                <span className="text-muted-foreground">3000 (API) / 5000 (Frontend)</span>
+              </div>
             </div>
           </div>
 
-          <Warning>
-            Render-Apps im kostenlosen Tarif schlafen nach 15 Minuten Inaktivität
-            ein. Der erste Aufruf nach einer Pause kann daher 30–60 Sekunden dauern.
-          </Warning>
+          <Tip>
+            Im Dev-Modus (Replit-Workspace) laufen API-Server und Frontend als
+            zwei separate Workflows parallel. Der Frontend-Workflow ist der
+            primäre — er ist unter Port 5000 erreichbar und im Preview sichtbar.
+          </Tip>
 
           {/* ───── FAQ ───── */}
           <SectionHeading
@@ -876,6 +905,10 @@ export default function Guide() {
                     </CodeBlock>
                   </>
                 ),
+              },
+              {
+                q: `Was genau passiert beim "Auszahlen & Löschen" eines Spielers?`,
+                a: 'Zwei Dinge gleichzeitig: (1) Der Jetonbetrag des Spielers wird ausgezahlt — die Summe der Jetons im Umlauf sinkt. (2) Das Fixum des Spielers wird aus der Bank entfernt — die Bank sinkt. Insgesamt reduziert sich der „Im Umlauf"-Betrag um beide Werte zusammen. Der Vorgang wird dauerhaft im Protokoll „Gelöschte Spieler" auf der Übersicht festgehalten.',
               },
               {
                 q: "Wie exportiere ich alle Daten?",
