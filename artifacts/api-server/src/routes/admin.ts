@@ -1,5 +1,4 @@
 import { Router, type Request, type Response } from "express";
-import crypto from "node:crypto";
 import { eq, and } from "drizzle-orm";
 
 import {
@@ -17,22 +16,6 @@ import { getGroupId } from "../lib/groupId.js";
 
 const router = Router();
 
-const DEFAULT_ADMIN_PASSWORD =
-  process.env.ADMIN_INITIAL_PASSWORD || "admin";
-
-function createPasswordHash(password: string, salt?: string) {
-  const passwordSalt = salt || crypto.randomBytes(16).toString("hex");
-
-  const passwordHash = crypto
-    .pbkdf2Sync(password, passwordSalt, 100_000, 64, "sha512")
-    .toString("hex");
-
-  return {
-    passwordHash,
-    passwordSalt,
-  };
-}
-
 async function ensureAdminSettings(groupId: number) {
   const rows = await db.select().from(adminSettingsTable).where(eq(adminSettingsTable.groupId, groupId)).limit(1);
 
@@ -40,14 +23,11 @@ async function ensureAdminSettings(groupId: number) {
     return rows[0];
   }
 
-  const { passwordHash, passwordSalt } =
-    createPasswordHash(DEFAULT_ADMIN_PASSWORD);
-
   const [settings] = await db
     .insert(adminSettingsTable)
     .values({
-      passwordHash,
-      passwordSalt,
+      passwordHash: "",
+      passwordSalt: "",
       groupId,
     })
     .returning();
@@ -55,116 +35,11 @@ async function ensureAdminSettings(groupId: number) {
   return settings;
 }
 
-async function checkPassword(password: string, groupId: number) {
-  const settings = await ensureAdminSettings(groupId);
-
-  const { passwordHash } = createPasswordHash(
-    password,
-    settings.passwordSalt,
-  );
-
-  return passwordHash === settings.passwordHash;
-}
-
-async function requireAdmin(req: Request, res: Response, groupId: number) {
-  const password =
-    req.headers["x-admin-password"] ||
-    req.body?.password ||
-    req.query?.password;
-
-  if (!password || typeof password !== "string") {
-    res.status(401).json({ error: "Admin password required" });
-    return false;
-  }
-
-  const ok = await checkPassword(password, groupId);
-
-  if (!ok) {
-    res.status(401).json({ error: "Invalid admin password" });
-    return false;
-  }
-
-  return true;
-}
-
-router.post("/admin/login", async (req, res) => {
+router.get("/admin/players", async (req: Request, res: Response) => {
   const groupId = getGroupId(req, res);
   if (groupId === null) return;
 
   try {
-    const { password } = req.body;
-
-    if (!password || typeof password !== "string") {
-      res.status(400).json({ error: "Password required" });
-      return;
-    }
-
-    const ok = await checkPassword(password, groupId);
-
-    if (!ok) {
-      res.status(401).json({ error: "Invalid password" });
-      return;
-    }
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error("Admin login failed", err);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-router.put("/admin/password", async (req, res) => {
-  const groupId = getGroupId(req, res);
-  if (groupId === null) return;
-
-  try {
-    const { password, newPassword } = req.body;
-
-    if (!password || !newPassword) {
-      res.status(400).json({ error: "Password and newPassword required" });
-      return;
-    }
-
-    const ok = await checkPassword(password, groupId);
-
-    if (!ok) {
-      res.status(401).json({ error: "Invalid password" });
-      return;
-    }
-
-    if (typeof newPassword !== "string" || newPassword.length < 4) {
-      res.status(400).json({
-        error: "New password must have at least 4 characters",
-      });
-      return;
-    }
-
-    const settings = await ensureAdminSettings(groupId);
-    const { passwordHash, passwordSalt } = createPasswordHash(newPassword);
-
-    await db
-      .update(adminSettingsTable)
-      .set({
-        passwordHash,
-        passwordSalt,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(adminSettingsTable.id, settings.id), eq(adminSettingsTable.groupId, groupId)));
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error("Failed to change admin password", err);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-router.get("/admin/players", async (req, res) => {
-  const groupId = getGroupId(req, res);
-  if (groupId === null) return;
-
-  try {
-    if (!(await requireAdmin(req, res, groupId))) return;
-
     const players = await db
       .select()
       .from(playersTable)
@@ -186,13 +61,11 @@ router.get("/admin/players", async (req, res) => {
   }
 });
 
-router.put("/admin/players/:id", async (req, res) => {
+router.put("/admin/players/:id", async (req: Request, res: Response) => {
   const groupId = getGroupId(req, res);
   if (groupId === null) return;
 
   try {
-    if (!(await requireAdmin(req, res, groupId))) return;
-
     const id = Number(req.params.id);
     const { name, chipBalance } = req.body;
 
@@ -201,10 +74,7 @@ router.put("/admin/players/:id", async (req, res) => {
       return;
     }
 
-    const updateValues: {
-      name?: string;
-      chipBalance?: string;
-    } = {};
+    const updateValues: { name?: string; chipBalance?: string } = {};
 
     if (typeof name === "string" && name.trim()) {
       updateValues.name = name.trim();
@@ -212,12 +82,10 @@ router.put("/admin/players/:id", async (req, res) => {
 
     if (chipBalance !== undefined) {
       const parsedBalance = Number(chipBalance);
-
       if (Number.isNaN(parsedBalance) || parsedBalance < 0) {
         res.status(400).json({ error: "Invalid chip balance" });
         return;
       }
-
       updateValues.chipBalance = String(parsedBalance);
     }
 
@@ -250,13 +118,11 @@ router.put("/admin/players/:id", async (req, res) => {
   }
 });
 
-router.post("/admin/initial-balances", async (req, res) => {
+router.post("/admin/initial-balances", async (req: Request, res: Response) => {
   const groupId = getGroupId(req, res);
   if (groupId === null) return;
 
   try {
-    if (!(await requireAdmin(req, res, groupId))) return;
-
     const { balances } = req.body;
 
     if (!Array.isArray(balances)) {
@@ -268,19 +134,13 @@ router.post("/admin/initial-balances", async (req, res) => {
       const playerId = Number(entry.playerId);
       const chipBalance = Number(entry.chipBalance);
 
-      if (
-        Number.isNaN(playerId) ||
-        Number.isNaN(chipBalance) ||
-        chipBalance < 0
-      ) {
+      if (Number.isNaN(playerId) || Number.isNaN(chipBalance) || chipBalance < 0) {
         continue;
       }
 
       await db
         .update(playersTable)
-        .set({
-          chipBalance: String(chipBalance),
-        })
+        .set({ chipBalance: String(chipBalance) })
         .where(and(eq(playersTable.id, playerId), eq(playersTable.groupId, groupId)));
     }
 
@@ -291,13 +151,11 @@ router.post("/admin/initial-balances", async (req, res) => {
   }
 });
 
-router.put("/admin/chip-inventory", async (req, res) => {
+router.put("/admin/chip-inventory", async (req: Request, res: Response) => {
   const groupId = getGroupId(req, res);
   if (groupId === null) return;
 
   try {
-    if (!(await requireAdmin(req, res, groupId))) return;
-
     const { chips } = req.body;
 
     if (!Array.isArray(chips)) {
@@ -311,20 +169,11 @@ router.put("/admin/chip-inventory", async (req, res) => {
       const value = Number(chip.value);
       const quantity = Number(chip.quantity);
 
-      if (
-        Number.isNaN(value) ||
-        Number.isNaN(quantity) ||
-        value <= 0 ||
-        quantity < 0
-      ) {
+      if (Number.isNaN(value) || Number.isNaN(quantity) || value <= 0 || quantity < 0) {
         continue;
       }
 
-      await db.insert(chipInventoryTable).values({
-        value,
-        quantity,
-        groupId,
-      });
+      await db.insert(chipInventoryTable).values({ value, quantity, groupId });
     }
 
     res.json({ success: true });
@@ -334,7 +183,7 @@ router.put("/admin/chip-inventory", async (req, res) => {
   }
 });
 
-router.get("/settings", async (req, res) => {
+router.get("/settings", async (req: Request, res: Response) => {
   const groupId = getGroupId(req, res);
   if (groupId === null) return;
 
@@ -347,13 +196,11 @@ router.get("/settings", async (req, res) => {
   }
 });
 
-router.put("/admin/settings", async (req, res) => {
+router.put("/admin/settings", async (req: Request, res: Response) => {
   const groupId = getGroupId(req, res);
   if (groupId === null) return;
 
   try {
-    if (!(await requireAdmin(req, res, groupId))) return;
-
     const { bankChipPercentage } = req.body;
     const pct = Number(bankChipPercentage);
 
@@ -376,13 +223,11 @@ router.put("/admin/settings", async (req, res) => {
   }
 });
 
-router.delete("/admin/reset", async (req, res) => {
+router.delete("/admin/reset", async (req: Request, res: Response) => {
   const groupId = getGroupId(req, res);
   if (groupId === null) return;
 
   try {
-    if (!(await requireAdmin(req, res, groupId))) return;
-
     const sessions = await db
       .select()
       .from(gameSessionsTable)
@@ -399,13 +244,10 @@ router.delete("/admin/reset", async (req, res) => {
     for (const player of players) {
       await db.delete(balanceSnapshotsTable).where(eq(balanceSnapshotsTable.playerId, player.id));
     }
+
     await db.delete(playersTable).where(eq(playersTable.groupId, groupId));
     await db.delete(bankTable).where(eq(bankTable.groupId, groupId));
-
-    await db.insert(bankTable).values({
-      balance: "0.00",
-      groupId,
-    });
+    await db.insert(bankTable).values({ balance: "0.00", groupId });
 
     res.json({ success: true });
   } catch (err) {

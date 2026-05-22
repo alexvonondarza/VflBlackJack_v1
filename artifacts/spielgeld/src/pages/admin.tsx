@@ -22,18 +22,13 @@ type AdminPlayer = {
   createdAt: string;
 };
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "";
-
-async function adminFetch(
-  path: string,
-  password: string,
-  options: RequestInit = {},
-) {
-  const response = await fetch(`${API_BASE_URL}/api${path}`, {
+async function adminFetch(path: string, options: RequestInit = {}) {
+  const groupId = localStorage.getItem("groupId");
+  const response = await fetch(`/api${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      "x-admin-password": password,
+      ...(groupId ? { "x-group-id": groupId } : {}),
       ...(options.headers || {}),
     },
   });
@@ -52,58 +47,23 @@ export default function Admin() {
   const { toast } = useToast();
 
   const [chips, setChips] = useState<{ value: number | string; quantity: number | string }[]>([]);
-
-  const [password, setPassword] = useState(
-    () => localStorage.getItem("adminPassword") || "",
-  );
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [players, setPlayers] = useState<AdminPlayer[]>([]);
-  const [newPassword, setNewPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const formatCurrency = (val: number) =>
     val.toFixed(2).replace(".", ",") + " €";
 
-  const login = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-
-    try {
-      setIsLoading(true);
-
-      await fetch(`${API_BASE_URL}/api/admin/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ password }),
-      }).then(async (res) => {
-        if (!res.ok) {
-          throw new Error("Passwort falsch");
-        }
-      });
-
-      localStorage.setItem("adminPassword", password);
-      setIsLoggedIn(true);
-      await Promise.all([loadPlayers(password), loadChipInventory()]);
-    } catch (err) {
-      toast({
-        title: "Fehler",
-        description: "Admin-Login fehlgeschlagen.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const loadPlayers = async (pw = password) => {
-    const data = await adminFetch("/admin/players", pw);
+  const loadPlayers = async () => {
+    const data = await adminFetch("/admin/players");
     setPlayers(data);
   };
 
   const loadChipInventory = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/chip-inventory`);
+      const groupId = localStorage.getItem("groupId");
+      const res = await fetch("/api/chip-inventory", {
+        headers: groupId ? { "x-group-id": groupId } : {},
+      });
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
         setChips(data.map((c: { value: number; quantity: number }) => ({ value: c.value, quantity: c.quantity })));
@@ -115,9 +75,16 @@ export default function Admin() {
     }
   };
 
+  useEffect(() => {
+    setIsLoading(true);
+    Promise.all([loadPlayers(), loadChipInventory()]).finally(() =>
+      setIsLoading(false),
+    );
+  }, []);
+
   const updatePlayer = async (player: AdminPlayer) => {
     try {
-      await adminFetch(`/admin/players/${player.id}`, password, {
+      await adminFetch(`/admin/players/${player.id}`, {
         method: "PUT",
         body: JSON.stringify({
           name: player.name,
@@ -125,24 +92,16 @@ export default function Admin() {
         }),
       });
 
-      toast({
-        title: "Gespeichert",
-        description: "Spieler wurde aktualisiert.",
-      });
-
+      toast({ title: "Gespeichert", description: "Spieler wurde aktualisiert." });
       await loadPlayers();
-    } catch (err) {
-      toast({
-        title: "Fehler",
-        description: "Spieler konnte nicht gespeichert werden.",
-        variant: "destructive",
-      });
+    } catch {
+      toast({ title: "Fehler", description: "Spieler konnte nicht gespeichert werden.", variant: "destructive" });
     }
   };
 
   const saveInitialBalances = async () => {
     try {
-      await adminFetch("/admin/initial-balances", password, {
+      await adminFetch("/admin/initial-balances", {
         method: "POST",
         body: JSON.stringify({
           balances: players.map((p) => ({
@@ -152,86 +111,31 @@ export default function Admin() {
         }),
       });
 
-      toast({
-        title: "Gespeichert",
-        description: "Initiale Jetonstände wurden gespeichert.",
-      });
-
+      toast({ title: "Gespeichert", description: "Initiale Jetonstände wurden gespeichert." });
       await loadPlayers();
-    } catch (err) {
-      toast({
-        title: "Fehler",
-        description: "Initialstände konnten nicht gespeichert werden.",
-        variant: "destructive",
-      });
+    } catch {
+      toast({ title: "Fehler", description: "Initialstände konnten nicht gespeichert werden.", variant: "destructive" });
     }
   };
 
-const saveChipInventory = async () => {
-  const validChips = chips
-    .map((c) => ({ value: Number(c.value), quantity: Number(c.quantity) }))
-    .filter((c) => c.value > 0 && !Number.isNaN(c.value) && !Number.isNaN(c.quantity) && c.quantity >= 0);
+  const saveChipInventory = async () => {
+    const validChips = chips
+      .map((c) => ({ value: Number(c.value), quantity: Number(c.quantity) }))
+      .filter((c) => c.value > 0 && !Number.isNaN(c.value) && !Number.isNaN(c.quantity) && c.quantity >= 0);
 
-  if (validChips.length === 0) {
-    toast({ title: "Fehler", description: "Mindestens ein gültiger Chip-Wert erforderlich.", variant: "destructive" });
-    return;
-  }
-
-  try {
-    await adminFetch("/admin/chip-inventory", password, {
-      method: "PUT",
-      body: JSON.stringify({ chips: validChips }),
-    });
-
-    toast({
-      title: "Gespeichert",
-      description: "Chipbestand wurde aktualisiert.",
-    });
-  } catch {
-    toast({
-      title: "Fehler",
-      description: "Chipbestand konnte nicht gespeichert werden.",
-      variant: "destructive",
-    });
-  }
-};
-  
-  const changePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!newPassword.trim()) return;
+    if (validChips.length === 0) {
+      toast({ title: "Fehler", description: "Mindestens ein gültiger Chip-Wert erforderlich.", variant: "destructive" });
+      return;
+    }
 
     try {
-      await fetch(`${API_BASE_URL}/api/admin/password`, {
+      await adminFetch("/admin/chip-inventory", {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-password": password,
-        },
-        body: JSON.stringify({
-          password,
-          newPassword,
-        }),
-      }).then(async (res) => {
-        if (!res.ok) {
-          throw new Error("Passwort konnte nicht geändert werden");
-        }
+        body: JSON.stringify({ chips: validChips }),
       });
-
-      setPassword(newPassword);
-      localStorage.setItem("adminPassword", newPassword);
-      setNewPassword("");
-
-      toast({
-        title: "Passwort geändert",
-        description: "Das neue Admin-Passwort wurde gespeichert.",
-      });
-    } catch (err) {
-      toast({
-        title: "Fehler",
-        description: "Passwort konnte nicht geändert werden.",
-        variant: "destructive",
-      });
+      toast({ title: "Gespeichert", description: "Chipbestand wurde aktualisiert." });
+    } catch {
+      toast({ title: "Fehler", description: "Chipbestand konnte nicht gespeichert werden.", variant: "destructive" });
     }
   };
 
@@ -239,76 +143,21 @@ const saveChipInventory = async () => {
     const confirmed = window.confirm(
       "Wirklich ALLES löschen? Spieler, Bank, Spielabende und Historie werden gelöscht.",
     );
-
     if (!confirmed) return;
 
     const confirmedAgain = window.confirm(
       "Letzte Warnung: Dieser Reset kann nicht rückgängig gemacht werden.",
     );
-
     if (!confirmedAgain) return;
 
     try {
-      await adminFetch("/admin/reset", password, {
-        method: "DELETE",
-      });
-
-      toast({
-        title: "Reset durchgeführt",
-        description: "Alle Tabellen wurden geleert.",
-      });
-
+      await adminFetch("/admin/reset", { method: "DELETE" });
+      toast({ title: "Reset durchgeführt", description: "Alle Tabellen wurden geleert." });
       await loadPlayers();
-    } catch (err) {
-      toast({
-        title: "Fehler",
-        description: "Reset konnte nicht durchgeführt werden.",
-        variant: "destructive",
-      });
+    } catch {
+      toast({ title: "Fehler", description: "Reset konnte nicht durchgeführt werden.", variant: "destructive" });
     }
   };
-
-  useEffect(() => {
-    if (password) {
-      login();
-    }
-  }, []);
-
-  if (!isLoggedIn) {
-    return (
-      <div className="p-4 md:p-8 font-mono">
-        <div className="max-w-md mx-auto">
-          <Card>
-            <CardHeader>
-              <CardTitle>Administration</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={login} className="space-y-4">
-                <Input
-                  type="password"
-                  placeholder="Admin-Passwort"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={isLoading || !password}
-                >
-                  Einloggen
-                </Button>
-              </form>
-
-              <p className="text-sm text-muted-foreground mt-4">
-                Standard-Passwort beim ersten Start: <strong>admin</strong>
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="p-4 md:p-8 font-mono">
@@ -333,18 +182,16 @@ const saveChipInventory = async () => {
             <CardTitle>Spieler bearbeiten</CardTitle>
           </CardHeader>
           <CardContent>
-            {players.length === 0 ? (
-              <p className="text-muted-foreground">
-                Keine Spieler vorhanden.
-              </p>
+            {isLoading ? (
+              <p className="text-muted-foreground">Lädt...</p>
+            ) : players.length === 0 ? (
+              <p className="text-muted-foreground">Keine Spieler vorhanden.</p>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
-                    <TableHead className="text-right">
-                      Aktuelle Jetons
-                    </TableHead>
+                    <TableHead className="text-right">Aktuelle Jetons</TableHead>
                     <TableHead className="text-right">Fixum</TableHead>
                     <TableHead className="text-right">Aktion</TableHead>
                   </TableRow>
@@ -357,10 +204,7 @@ const saveChipInventory = async () => {
                           value={player.name}
                           onChange={(e) => {
                             const next = [...players];
-                            next[index] = {
-                              ...player,
-                              name: e.target.value,
-                            };
+                            next[index] = { ...player, name: e.target.value };
                             setPlayers(next);
                           }}
                         />
@@ -374,10 +218,7 @@ const saveChipInventory = async () => {
                           value={player.chipBalance}
                           onChange={(e) => {
                             const next = [...players];
-                            next[index] = {
-                              ...player,
-                              chipBalance: Number(e.target.value),
-                            };
+                            next[index] = { ...player, chipBalance: Number(e.target.value) };
                             setPlayers(next);
                           }}
                           className="text-right"
@@ -389,9 +230,7 @@ const saveChipInventory = async () => {
                       </TableCell>
 
                       <TableCell className="text-right">
-                        <Button onClick={() => updatePlayer(player)}>
-                          Speichern
-                        </Button>
+                        <Button onClick={() => updatePlayer(player)}>Speichern</Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -401,9 +240,7 @@ const saveChipInventory = async () => {
 
             {players.length > 0 && (
               <div className="flex justify-end mt-4">
-                <Button onClick={saveInitialBalances}>
-                  Alle Jetonstände speichern
-                </Button>
+                <Button onClick={saveInitialBalances}>Alle Jetonstände speichern</Button>
               </div>
             )}
           </CardContent>
@@ -411,46 +248,8 @@ const saveChipInventory = async () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Admin-Passwort ändern</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={changePassword} className="flex gap-4">
-              <Input
-                type="password"
-                placeholder="Neues Passwort"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-              />
-
-              <Button type="submit" disabled={!newPassword.trim()}>
-                Passwort ändern
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        <Card className="border-destructive">
-          <CardHeader>
-            <CardTitle className="text-destructive">
-              Kompletter Reset
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-muted-foreground">
-              Löscht Spieler, Bank, Spielabende und Historie vollständig.
-            </p>
-
-            <Button variant="destructive" onClick={resetAll}>
-              Alles löschen
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
             <CardTitle>Verfügbare Chips</CardTitle>
           </CardHeader>
-
           <CardContent className="space-y-4">
             <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
               <span className="text-sm text-muted-foreground font-bold uppercase tracking-wider">Wert (€)</span>
@@ -503,10 +302,22 @@ const saveChipInventory = async () => {
             </Button>
 
             <div className="pt-2">
-              <Button onClick={saveChipInventory}>
-                Chipbestand speichern
-              </Button>
+              <Button onClick={saveChipInventory}>Chipbestand speichern</Button>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-destructive">
+          <CardHeader>
+            <CardTitle className="text-destructive">Kompletter Reset</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-muted-foreground">
+              Löscht Spieler, Bank, Spielabende und Historie vollständig.
+            </p>
+            <Button variant="destructive" onClick={resetAll}>
+              Alles löschen
+            </Button>
           </CardContent>
         </Card>
       </div>
