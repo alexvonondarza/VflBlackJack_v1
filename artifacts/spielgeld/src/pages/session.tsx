@@ -67,15 +67,24 @@ type ChipDistributionRow = {
   targetAmount: number;
   distribution: Record<number, number>;
   rest: number;
+  isBank?: boolean;
 };
 
 function calculateChipDistribution(
   players: { name: string; chipBalance: number }[],
   inventory: ChipInventoryItem[],
+  bankBalance: number,
+  bankChipPercentage: number,
 ): ChipDistributionRow[] {
+  const bankTarget = Math.round(bankBalance * (bankChipPercentage / 100));
+  const allParticipants = [
+    ...players,
+    { name: "Bank", chipBalance: bankTarget },
+  ];
+
   const sortedChips = [...inventory].sort((a, b) => a.value - b.value);
-  const remainders = players.map((p) => Math.round(Number(p.chipBalance)));
-  const distributions: Record<number, number>[] = players.map(() => ({}));
+  const remainders = allParticipants.map((p) => Math.round(Number(p.chipBalance)));
+  const distributions: Record<number, number>[] = allParticipants.map(() => ({}));
 
   for (const chip of sortedChips) {
     let available = chip.quantity;
@@ -86,14 +95,14 @@ function calculateChipDistribution(
     if (totalDemanded === 0) continue;
 
     if (totalDemanded <= available) {
-      players.forEach((_, i) => {
+      allParticipants.forEach((_, i) => {
         if (demanded[i] > 0) {
           distributions[i][chip.value] = demanded[i];
           remainders[i] -= demanded[i] * chip.value;
         }
       });
     } else {
-      players.forEach((_, i) => {
+      allParticipants.forEach((_, i) => {
         if (demanded[i] > 0) {
           const give = Math.floor((demanded[i] / totalDemanded) * available);
           if (give > 0) {
@@ -103,7 +112,7 @@ function calculateChipDistribution(
           }
         }
       });
-      const byDemand = players
+      const byDemand = allParticipants
         .map((_, i) => i)
         .sort((a, b) => demanded[b] - demanded[a]);
       for (const idx of byDemand) {
@@ -118,11 +127,12 @@ function calculateChipDistribution(
     }
   }
 
-  return players.map((player, i) => ({
-    name: player.name,
-    targetAmount: Number(player.chipBalance),
+  return allParticipants.map((participant, i) => ({
+    name: participant.name,
+    targetAmount: Number(participant.chipBalance),
     distribution: distributions[i],
     rest: remainders[i],
+    isBank: participant.name === "Bank",
   }));
 }
 
@@ -145,6 +155,7 @@ export default function Session() {
   const createPlayer = useCreatePlayer();
 
   const [chipInventory, setChipInventory] = useState<ChipInventoryItem[]>([]);
+  const [bankChipPercentage, setBankChipPercentage] = useState<number>(10);
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<number[]>([]);
   const [newSessionName, setNewSessionName] = useState(() => {
     const now = new Date();
@@ -163,6 +174,15 @@ export default function Session() {
       .then((res) => res.json())
       .then(setChipInventory)
       .catch(() => setChipInventory([]));
+
+    fetch(`${import.meta.env.VITE_API_URL}/api/settings`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (typeof data.bankChipPercentage === "number") {
+          setBankChipPercentage(data.bankChipPercentage);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const formatCurrency = (val: number) => {
@@ -383,6 +403,8 @@ export default function Session() {
         chipBalance: Number(p.chipBalance),
       })),
       chipInventory,
+      bank?.balance ?? 0,
+      bankChipPercentage,
     );
 
     return (
@@ -530,13 +552,26 @@ export default function Session() {
 
                   <TableBody>
                     {chipDistribution.map((row) => (
-                      <TableRow key={row.name}>
-                        <TableCell>{row.name}</TableCell>
+                      <TableRow
+                        key={row.name}
+                        className={row.isBank ? "bg-primary/10 font-semibold border-primary/30" : ""}
+                      >
+                        <TableCell>
+                          {row.isBank ? (
+                            <span className="flex items-center gap-2">
+                              <Badge className="bg-primary text-primary-foreground text-xs">Bank</Badge>
+                              <span className="text-muted-foreground text-xs">({bankChipPercentage}% von Bankbestand)</span>
+                            </span>
+                          ) : (
+                            row.name
+                          )}
+                        </TableCell>
                         <TableCell className="text-right">
                           {formatCurrency(row.targetAmount)}
                         </TableCell>
                         <TableCell>
                           {Object.entries(row.distribution)
+                            .sort(([a], [b]) => Number(a) - Number(b))
                             .map(([value, count]) => `${count}× ${value} €`)
                             .join(", ") || "-"}
                         </TableCell>

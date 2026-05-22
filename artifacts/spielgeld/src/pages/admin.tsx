@@ -52,6 +52,7 @@ export default function Admin() {
   const { toast } = useToast();
 
   const [chips, setChips] = useState<{ value: number | string; quantity: number | string }[]>([]);
+  const [bankChipPercentage, setBankChipPercentage] = useState<number>(10);
 
   const [password, setPassword] = useState(
     () => localStorage.getItem("adminPassword") || "",
@@ -84,7 +85,7 @@ export default function Admin() {
 
       localStorage.setItem("adminPassword", password);
       setIsLoggedIn(true);
-      await Promise.all([loadPlayers(password), loadChipInventory()]);
+      await Promise.all([loadPlayers(password), loadChipInventory(), loadSettings()]);
     } catch (err) {
       toast({
         title: "Fehler",
@@ -112,6 +113,35 @@ export default function Admin() {
       }
     } catch {
       setChips([{ value: "", quantity: "" }]);
+    }
+  };
+
+  const loadSettings = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/settings`);
+      const data = await res.json();
+      if (typeof data.bankChipPercentage === "number") {
+        setBankChipPercentage(data.bankChipPercentage);
+      }
+    } catch {
+      // use default
+    }
+  };
+
+  const saveSettings = async () => {
+    const pct = Number(bankChipPercentage);
+    if (Number.isNaN(pct) || pct < 0 || pct > 100) {
+      toast({ title: "Fehler", description: "Wert muss zwischen 0 und 100 liegen.", variant: "destructive" });
+      return;
+    }
+    try {
+      await adminFetch("/admin/settings", password, {
+        method: "PUT",
+        body: JSON.stringify({ bankChipPercentage: Math.round(pct) }),
+      });
+      toast({ title: "Gespeichert", description: "Bank-Anteil wurde aktualisiert." });
+    } catch {
+      toast({ title: "Fehler", description: "Einstellung konnte nicht gespeichert werden.", variant: "destructive" });
     }
   };
 
@@ -443,6 +473,34 @@ const saveChipInventory = async () => {
             <Button variant="destructive" onClick={resetAll}>
               Alles löschen
             </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Spieleinstellungen</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground mb-2">
+                Anteil der Bank an der Jeton-Verteilung (in %). Dieser Prozentsatz des aktuellen Bankbestands wird der Bank als Chips zugeteilt.
+              </p>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 w-48">
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={bankChipPercentage}
+                    onChange={(e) => setBankChipPercentage(Number(e.target.value))}
+                    className="w-24 text-right"
+                  />
+                  <span className="text-muted-foreground font-bold">%</span>
+                </div>
+                <Button onClick={saveSettings}>Bank-Anteil speichern</Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
 

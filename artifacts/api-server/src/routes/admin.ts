@@ -311,6 +311,42 @@ router.put("/admin/chip-inventory", async (req, res) => {
   }
 });
 
+router.get("/settings", async (_req, res) => {
+  try {
+    const settings = await ensureAdminSettings();
+    res.json({ bankChipPercentage: settings.bankChipPercentage ?? 10 });
+  } catch (err) {
+    console.error("Failed to load settings", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.put("/admin/settings", async (req, res) => {
+  try {
+    if (!(await requireAdmin(req, res))) return;
+
+    const { bankChipPercentage } = req.body;
+    const pct = Number(bankChipPercentage);
+
+    if (Number.isNaN(pct) || pct < 0 || pct > 100) {
+      res.status(400).json({ error: "bankChipPercentage must be between 0 and 100" });
+      return;
+    }
+
+    const settings = await ensureAdminSettings();
+
+    await db
+      .update(adminSettingsTable)
+      .set({ bankChipPercentage: Math.round(pct), updatedAt: new Date() })
+      .where(eq(adminSettingsTable.id, settings.id));
+
+    res.json({ success: true, bankChipPercentage: Math.round(pct) });
+  } catch (err) {
+    console.error("Failed to save settings", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.delete("/admin/reset", async (req, res) => {
   try {
     if (!(await requireAdmin(req, res))) return;
