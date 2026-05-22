@@ -10,15 +10,17 @@ import {
   balanceSnapshotsTable,
 } from "@workspace/db";
 
+import { getGroupId } from "../lib/groupId.js";
+
 const router = Router();
 
-async function ensureBank() {
-  const rows = await db.select().from(bankTable).limit(1);
+async function ensureBank(groupId: number) {
+  const rows = await db.select().from(bankTable).where(eq(bankTable.groupId, groupId)).limit(1);
 
   if (rows.length === 0) {
     const [row] = await db
       .insert(bankTable)
-      .values({ balance: "0.00" })
+      .values({ balance: "0.00", groupId })
       .returning();
 
     return row;
@@ -45,11 +47,15 @@ function mapSessionPlayer(p: {
   };
 }
 
-router.get("/game-sessions", async (_req, res) => {
+router.get("/game-sessions", async (req, res) => {
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
+
   try {
     const sessions = await db
       .select()
       .from(gameSessionsTable)
+      .where(eq(gameSessionsTable.groupId, groupId))
       .orderBy(gameSessionsTable.createdAt);
 
     const result = await Promise.all(
@@ -78,6 +84,9 @@ router.get("/game-sessions", async (_req, res) => {
 });
 
 router.post("/game-sessions", async (req, res) => {
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
+
   const { name } = req.body;
 
   if (!name || typeof name !== "string" || !name.trim()) {
@@ -86,7 +95,7 @@ router.post("/game-sessions", async (req, res) => {
   }
 
   try {
-    const bank = await ensureBank();
+    const bank = await ensureBank(groupId);
     const bankBalanceBefore = Number(bank.balance);
 
     const [session] = await db
@@ -95,6 +104,7 @@ router.post("/game-sessions", async (req, res) => {
         name: name.trim(),
         status: "active",
         bankBalanceBefore: String(bankBalanceBefore),
+        groupId,
       })
       .returning();
 
@@ -112,12 +122,15 @@ router.post("/game-sessions", async (req, res) => {
   }
 });
 
-router.get("/game-sessions/active", async (_req, res) => {
+router.get("/game-sessions/active", async (req, res) => {
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
+
   try {
     const [session] = await db
       .select()
       .from(gameSessionsTable)
-      .where(eq(gameSessionsTable.status, "active"))
+      .where(and(eq(gameSessionsTable.groupId, groupId), eq(gameSessionsTable.status, "active")))
       .orderBy(gameSessionsTable.createdAt)
       .limit(1);
 
@@ -157,6 +170,9 @@ router.get("/game-sessions/active", async (_req, res) => {
 });
 
 router.get("/game-sessions/:id", async (req, res) => {
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
+
   const id = Number(req.params.id);
 
   if (isNaN(id)) {
@@ -168,7 +184,7 @@ router.get("/game-sessions/:id", async (req, res) => {
     const [session] = await db
       .select()
       .from(gameSessionsTable)
-      .where(eq(gameSessionsTable.id, id))
+      .where(and(eq(gameSessionsTable.id, id), eq(gameSessionsTable.groupId, groupId)))
       .limit(1);
 
     if (!session) {
@@ -207,6 +223,9 @@ router.get("/game-sessions/:id", async (req, res) => {
 });
 
 router.get("/game-sessions/:id/history", async (req, res) => {
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
+
   const id = Number(req.params.id);
 
   if (isNaN(id)) {
@@ -218,7 +237,7 @@ router.get("/game-sessions/:id/history", async (req, res) => {
     const [session] = await db
       .select()
       .from(gameSessionsTable)
-      .where(eq(gameSessionsTable.id, id))
+      .where(and(eq(gameSessionsTable.id, id), eq(gameSessionsTable.groupId, groupId)))
       .limit(1);
 
     if (!session) {
@@ -266,6 +285,9 @@ router.get("/game-sessions/:id/history", async (req, res) => {
 });
 
 router.post("/game-sessions/:id/finalize", async (req, res) => {
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
+
   const sessionId = Number(req.params.id);
 
   if (isNaN(sessionId)) {
@@ -284,7 +306,7 @@ router.post("/game-sessions/:id/finalize", async (req, res) => {
     const [session] = await db
       .select()
       .from(gameSessionsTable)
-      .where(eq(gameSessionsTable.id, sessionId))
+      .where(and(eq(gameSessionsTable.id, sessionId), eq(gameSessionsTable.groupId, groupId)))
       .limit(1);
 
     if (!session) {
@@ -304,7 +326,7 @@ router.post("/game-sessions/:id/finalize", async (req, res) => {
       const [player] = await db
         .select()
         .from(playersTable)
-        .where(eq(playersTable.id, playerId))
+        .where(and(eq(playersTable.id, playerId), eq(playersTable.groupId, groupId)))
         .limit(1);
 
       if (!player) continue;
@@ -320,7 +342,7 @@ router.post("/game-sessions/:id/finalize", async (req, res) => {
         .set({
           chipBalance: String(balanceAfter),
         })
-        .where(eq(playersTable.id, playerId));
+        .where(and(eq(playersTable.id, playerId), eq(playersTable.groupId, groupId)));
 
       await db.insert(balanceSnapshotsTable).values({
         playerId,
@@ -332,7 +354,7 @@ router.post("/game-sessions/:id/finalize", async (req, res) => {
       });
     }
 
-    const bank = await ensureBank();
+    const bank = await ensureBank(groupId);
     const bankAdjustment = -totalPlayerDiff;
 
     await db
@@ -341,12 +363,12 @@ router.post("/game-sessions/:id/finalize", async (req, res) => {
         balance: sql`${bankTable.balance} + ${bankAdjustment}`,
         updatedAt: new Date(),
       })
-      .where(eq(bankTable.id, bank.id));
+      .where(and(eq(bankTable.id, bank.id), eq(bankTable.groupId, groupId)));
 
     const [updatedBank] = await db
       .select()
       .from(bankTable)
-      .where(eq(bankTable.id, bank.id))
+      .where(and(eq(bankTable.id, bank.id), eq(bankTable.groupId, groupId)))
       .limit(1);
 
     const bankBalanceAfter = Number(updatedBank.balance);
@@ -363,7 +385,7 @@ router.post("/game-sessions/:id/finalize", async (req, res) => {
         endedAt: new Date(),
         bankBalanceAfter: String(bankBalanceAfter),
       })
-      .where(eq(gameSessionsTable.id, sessionId))
+      .where(and(eq(gameSessionsTable.id, sessionId), eq(gameSessionsTable.groupId, groupId)))
       .returning();
 
     res.json({
@@ -383,6 +405,9 @@ router.post("/game-sessions/:id/finalize", async (req, res) => {
 });
 
 router.post("/game-sessions/:id/players", async (req, res) => {
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
+
   const sessionId = Number(req.params.id);
   const { playerId } = req.body;
 
@@ -395,7 +420,7 @@ router.post("/game-sessions/:id/players", async (req, res) => {
     const [session] = await db
       .select()
       .from(gameSessionsTable)
-      .where(eq(gameSessionsTable.id, sessionId))
+      .where(and(eq(gameSessionsTable.id, sessionId), eq(gameSessionsTable.groupId, groupId)))
       .limit(1);
 
     if (!session) {
@@ -406,7 +431,7 @@ router.post("/game-sessions/:id/players", async (req, res) => {
     const [player] = await db
       .select()
       .from(playersTable)
-      .where(eq(playersTable.id, Number(playerId)))
+      .where(and(eq(playersTable.id, Number(playerId)), eq(playersTable.groupId, groupId)))
       .limit(1);
 
     if (!player) {
@@ -455,6 +480,9 @@ router.post("/game-sessions/:id/players", async (req, res) => {
 });
 
 router.delete("/game-sessions/:id/players/:playerId", async (req, res) => {
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
+
   const sessionId = Number(req.params.id);
   const playerId = Number(req.params.playerId);
 
@@ -467,7 +495,7 @@ router.delete("/game-sessions/:id/players/:playerId", async (req, res) => {
     const [session] = await db
       .select()
       .from(gameSessionsTable)
-      .where(eq(gameSessionsTable.id, sessionId))
+      .where(and(eq(gameSessionsTable.id, sessionId), eq(gameSessionsTable.groupId, groupId)))
       .limit(1);
 
     if (!session) {
@@ -478,7 +506,7 @@ router.delete("/game-sessions/:id/players/:playerId", async (req, res) => {
     const [player] = await db
       .select()
       .from(playersTable)
-      .where(eq(playersTable.id, playerId))
+      .where(and(eq(playersTable.id, playerId), eq(playersTable.groupId, groupId)))
       .limit(1);
 
     if (!player) {

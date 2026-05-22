@@ -1,8 +1,10 @@
 import { pgTable, serial, text, timestamp, integer, numeric } from "drizzle-orm/pg-core";
 import { playersTable } from "./players.js";
+import { groupsTable } from "./groups.js";
 
 export const gameSessionsTable = pgTable("game_sessions", {
   id: serial("id").primaryKey(),
+  groupId: integer("group_id").notNull().references(() => groupsTable.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   status: text("status", { enum: ["active", "ended"] }).notNull().default("active"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

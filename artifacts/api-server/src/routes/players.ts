@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and } from "drizzle-orm";
 
 import {
   db,
@@ -15,16 +15,18 @@ import {
   BuyChipsBody,
 } from "@workspace/api-zod";
 
+import { getGroupId } from "../lib/groupId.js";
+
 const router = Router();
 const REGISTRATION_FIXUM = 5;
 
-async function ensureBank() {
-  const rows = await db.select().from(bankTable).limit(1);
+async function ensureBank(groupId: number) {
+  const rows = await db.select().from(bankTable).where(eq(bankTable.groupId, groupId)).limit(1);
 
   if (rows.length === 0) {
     const [row] = await db
       .insert(bankTable)
-      .values({ balance: "0.00" })
+      .values({ balance: "0.00", groupId })
       .returning();
 
     return row;
@@ -43,11 +45,15 @@ function mapPlayer(p: typeof playersTable.$inferSelect) {
   };
 }
 
-router.get("/players", async (_req: Request, res: Response) => {
+router.get("/players", async (req: Request, res: Response) => {
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
+
   try {
     const players = await db
       .select()
       .from(playersTable)
+      .where(eq(playersTable.groupId, groupId))
       .orderBy(playersTable.createdAt);
 
     res.json(players.map(mapPlayer));
@@ -58,6 +64,9 @@ router.get("/players", async (_req: Request, res: Response) => {
 });
 
 router.post("/players", async (req: Request, res: Response) => {
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
+
   const parsed = CreatePlayerBody.safeParse(req.body);
 
   if (!parsed.success) {
@@ -72,10 +81,11 @@ router.post("/players", async (req: Request, res: Response) => {
         name: parsed.data.name,
         chipBalance: "0.00",
         fixumPaid: String(REGISTRATION_FIXUM),
+        groupId,
       })
       .returning();
 
-    const bank = await ensureBank();
+    const bank = await ensureBank(groupId);
 
     await db
       .update(bankTable)
@@ -83,7 +93,7 @@ router.post("/players", async (req: Request, res: Response) => {
         balance: sql`${bankTable.balance} + ${REGISTRATION_FIXUM}`,
         updatedAt: new Date(),
       })
-      .where(eq(bankTable.id, bank.id));
+      .where(and(eq(bankTable.id, bank.id), eq(bankTable.groupId, groupId)));
 
     res.status(201).json(mapPlayer(player));
   } catch (err) {
@@ -93,6 +103,9 @@ router.post("/players", async (req: Request, res: Response) => {
 });
 
 router.delete("/players/:id", async (req: Request, res: Response) => {
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
+
   const parsed = DeletePlayerParams.safeParse({
     id: Number(req.params.id),
   });
@@ -106,7 +119,7 @@ router.delete("/players/:id", async (req: Request, res: Response) => {
     const [player] = await db
       .select()
       .from(playersTable)
-      .where(eq(playersTable.id, parsed.data.id))
+      .where(and(eq(playersTable.id, parsed.data.id), eq(playersTable.groupId, groupId)))
       .limit(1);
 
     if (!player) {
@@ -116,7 +129,7 @@ router.delete("/players/:id", async (req: Request, res: Response) => {
 
     const cashoutAmount = Number(player.chipBalance);
 
-    const bank = await ensureBank();
+    const bank = await ensureBank(groupId);
 
     await db
       .update(bankTable)
@@ -124,16 +137,16 @@ router.delete("/players/:id", async (req: Request, res: Response) => {
         balance: sql`${bankTable.balance} - ${cashoutAmount}`,
         updatedAt: new Date(),
       })
-      .where(eq(bankTable.id, bank.id));
+      .where(and(eq(bankTable.id, bank.id), eq(bankTable.groupId, groupId)));
 
     await db
       .delete(playersTable)
-      .where(eq(playersTable.id, parsed.data.id));
+      .where(and(eq(playersTable.id, parsed.data.id), eq(playersTable.groupId, groupId)));
 
     const [updatedBank] = await db
       .select()
       .from(bankTable)
-      .where(eq(bankTable.id, bank.id))
+      .where(and(eq(bankTable.id, bank.id), eq(bankTable.groupId, groupId)))
       .limit(1);
 
     res.json({
@@ -148,6 +161,9 @@ router.delete("/players/:id", async (req: Request, res: Response) => {
 });
 
 router.post("/players/:id/buy-chips", async (req: Request, res: Response) => {
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
+
   const paramsParsed = BuyChipsParams.safeParse({
     id: Number(req.params.id),
   });
@@ -168,7 +184,7 @@ router.post("/players/:id/buy-chips", async (req: Request, res: Response) => {
     const [player] = await db
       .select()
       .from(playersTable)
-      .where(eq(playersTable.id, paramsParsed.data.id))
+      .where(and(eq(playersTable.id, paramsParsed.data.id), eq(playersTable.groupId, groupId)))
       .limit(1);
 
     if (!player) {
@@ -183,7 +199,7 @@ router.post("/players/:id/buy-chips", async (req: Request, res: Response) => {
       .set({
         chipBalance: sql`${playersTable.chipBalance} + ${amount}`,
       })
-      .where(eq(playersTable.id, paramsParsed.data.id))
+      .where(and(eq(playersTable.id, paramsParsed.data.id), eq(playersTable.groupId, groupId)))
       .returning();
 
     res.json(mapPlayer(updated));
@@ -194,6 +210,9 @@ router.post("/players/:id/buy-chips", async (req: Request, res: Response) => {
 });
 
 router.get("/players/:id/history", async (req: Request, res: Response) => {
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
+
   const id = Number(req.params.id);
 
   if (isNaN(id)) {
@@ -205,7 +224,7 @@ router.get("/players/:id/history", async (req: Request, res: Response) => {
     const [player] = await db
       .select()
       .from(playersTable)
-      .where(eq(playersTable.id, id))
+      .where(and(eq(playersTable.id, id), eq(playersTable.groupId, groupId)))
       .limit(1);
 
     if (!player) {

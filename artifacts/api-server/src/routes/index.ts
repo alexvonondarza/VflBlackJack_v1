@@ -5,9 +5,11 @@ import bankRouter from "./bank.js";
 import gameSessionsRouter from "./gameSessions.js";
 import adminRouter from "./admin.js";
 import chipInventoryRouter from "./chipInventory.js";
+import groupsRouter from "./groups.js";
 
 const router: IRouter = Router();
 
+router.use(groupsRouter);
 router.use(healthRouter);
 router.use(playersRouter);
 router.use(bankRouter);

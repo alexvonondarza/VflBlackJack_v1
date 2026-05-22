@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import crypto from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 import {
   db,
@@ -12,6 +12,8 @@ import {
   adminSettingsTable,
   chipInventoryTable,
 } from "@workspace/db";
+
+import { getGroupId } from "../lib/groupId.js";
 
 const router = Router();
 
@@ -31,8 +33,8 @@ function createPasswordHash(password: string, salt?: string) {
   };
 }
 
-async function ensureAdminSettings() {
-  const rows = await db.select().from(adminSettingsTable).limit(1);
+async function ensureAdminSettings(groupId: number) {
+  const rows = await db.select().from(adminSettingsTable).where(eq(adminSettingsTable.groupId, groupId)).limit(1);
 
   if (rows.length > 0) {
     return rows[0];
@@ -46,14 +48,15 @@ async function ensureAdminSettings() {
     .values({
       passwordHash,
       passwordSalt,
+      groupId,
     })
     .returning();
 
   return settings;
 }
 
-async function checkPassword(password: string) {
-  const settings = await ensureAdminSettings();
+async function checkPassword(password: string, groupId: number) {
+  const settings = await ensureAdminSettings(groupId);
 
   const { passwordHash } = createPasswordHash(
     password,
@@ -63,7 +66,7 @@ async function checkPassword(password: string) {
   return passwordHash === settings.passwordHash;
 }
 
-async function requireAdmin(req: Request, res: Response) {
+async function requireAdmin(req: Request, res: Response, groupId: number) {
   const password =
     req.headers["x-admin-password"] ||
     req.body?.password ||
@@ -74,7 +77,7 @@ async function requireAdmin(req: Request, res: Response) {
     return false;
   }
 
-  const ok = await checkPassword(password);
+  const ok = await checkPassword(password, groupId);
 
   if (!ok) {
     res.status(401).json({ error: "Invalid admin password" });
@@ -85,6 +88,9 @@ async function requireAdmin(req: Request, res: Response) {
 }
 
 router.post("/admin/login", async (req, res) => {
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
+
   try {
     const { password } = req.body;
 
@@ -93,7 +99,7 @@ router.post("/admin/login", async (req, res) => {
       return;
     }
 
-    const ok = await checkPassword(password);
+    const ok = await checkPassword(password, groupId);
 
     if (!ok) {
       res.status(401).json({ error: "Invalid password" });
@@ -108,6 +114,9 @@ router.post("/admin/login", async (req, res) => {
 });
 
 router.put("/admin/password", async (req, res) => {
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
+
   try {
     const { password, newPassword } = req.body;
 
@@ -116,7 +125,7 @@ router.put("/admin/password", async (req, res) => {
       return;
     }
 
-    const ok = await checkPassword(password);
+    const ok = await checkPassword(password, groupId);
 
     if (!ok) {
       res.status(401).json({ error: "Invalid password" });
@@ -130,7 +139,7 @@ router.put("/admin/password", async (req, res) => {
       return;
     }
 
-    const settings = await ensureAdminSettings();
+    const settings = await ensureAdminSettings(groupId);
     const { passwordHash, passwordSalt } = createPasswordHash(newPassword);
 
     await db
@@ -140,7 +149,7 @@ router.put("/admin/password", async (req, res) => {
         passwordSalt,
         updatedAt: new Date(),
       })
-      .where(eq(adminSettingsTable.id, settings.id));
+      .where(and(eq(adminSettingsTable.id, settings.id), eq(adminSettingsTable.groupId, groupId)));
 
     res.json({ success: true });
   } catch (err) {
@@ -150,12 +159,16 @@ router.put("/admin/password", async (req, res) => {
 });
 
 router.get("/admin/players", async (req, res) => {
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
+
   try {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireAdmin(req, res, groupId))) return;
 
     const players = await db
       .select()
       .from(playersTable)
+      .where(eq(playersTable.groupId, groupId))
       .orderBy(playersTable.createdAt);
 
     res.json(
@@ -174,8 +187,11 @@ router.get("/admin/players", async (req, res) => {
 });
 
 router.put("/admin/players/:id", async (req, res) => {
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
+
   try {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireAdmin(req, res, groupId))) return;
 
     const id = Number(req.params.id);
     const { name, chipBalance } = req.body;
@@ -213,7 +229,7 @@ router.put("/admin/players/:id", async (req, res) => {
     const [updated] = await db
       .update(playersTable)
       .set(updateValues)
-      .where(eq(playersTable.id, id))
+      .where(and(eq(playersTable.id, id), eq(playersTable.groupId, groupId)))
       .returning();
 
     if (!updated) {
@@ -235,8 +251,11 @@ router.put("/admin/players/:id", async (req, res) => {
 });
 
 router.post("/admin/initial-balances", async (req, res) => {
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
+
   try {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireAdmin(req, res, groupId))) return;
 
     const { balances } = req.body;
 
@@ -262,7 +281,7 @@ router.post("/admin/initial-balances", async (req, res) => {
         .set({
           chipBalance: String(chipBalance),
         })
-        .where(eq(playersTable.id, playerId));
+        .where(and(eq(playersTable.id, playerId), eq(playersTable.groupId, groupId)));
     }
 
     res.json({ success: true });
@@ -273,8 +292,11 @@ router.post("/admin/initial-balances", async (req, res) => {
 });
 
 router.put("/admin/chip-inventory", async (req, res) => {
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
+
   try {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireAdmin(req, res, groupId))) return;
 
     const { chips } = req.body;
 
@@ -283,7 +305,7 @@ router.put("/admin/chip-inventory", async (req, res) => {
       return;
     }
 
-    await db.delete(chipInventoryTable);
+    await db.delete(chipInventoryTable).where(eq(chipInventoryTable.groupId, groupId));
 
     for (const chip of chips) {
       const value = Number(chip.value);
@@ -301,6 +323,7 @@ router.put("/admin/chip-inventory", async (req, res) => {
       await db.insert(chipInventoryTable).values({
         value,
         quantity,
+        groupId,
       });
     }
 
@@ -311,9 +334,12 @@ router.put("/admin/chip-inventory", async (req, res) => {
   }
 });
 
-router.get("/settings", async (_req, res) => {
+router.get("/settings", async (req, res) => {
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
+
   try {
-    const settings = await ensureAdminSettings();
+    const settings = await ensureAdminSettings(groupId);
     res.json({ bankChipPercentage: settings.bankChipPercentage ?? 10 });
   } catch (err) {
     console.error("Failed to load settings", err);
@@ -322,8 +348,11 @@ router.get("/settings", async (_req, res) => {
 });
 
 router.put("/admin/settings", async (req, res) => {
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
+
   try {
-    if (!(await requireAdmin(req, res))) return;
+    if (!(await requireAdmin(req, res, groupId))) return;
 
     const { bankChipPercentage } = req.body;
     const pct = Number(bankChipPercentage);
@@ -333,12 +362,12 @@ router.put("/admin/settings", async (req, res) => {
       return;
     }
 
-    const settings = await ensureAdminSettings();
+    const settings = await ensureAdminSettings(groupId);
 
     await db
       .update(adminSettingsTable)
       .set({ bankChipPercentage: Math.round(pct), updatedAt: new Date() })
-      .where(eq(adminSettingsTable.id, settings.id));
+      .where(and(eq(adminSettingsTable.id, settings.id), eq(adminSettingsTable.groupId, groupId)));
 
     res.json({ success: true, bankChipPercentage: Math.round(pct) });
   } catch (err) {
@@ -348,17 +377,34 @@ router.put("/admin/settings", async (req, res) => {
 });
 
 router.delete("/admin/reset", async (req, res) => {
-  try {
-    if (!(await requireAdmin(req, res))) return;
+  const groupId = getGroupId(req, res);
+  if (groupId === null) return;
 
-    await db.delete(balanceSnapshotsTable);
-    await db.delete(gameSessionPlayersTable);
-    await db.delete(gameSessionsTable);
-    await db.delete(playersTable);
-    await db.delete(bankTable);
+  try {
+    if (!(await requireAdmin(req, res, groupId))) return;
+
+    const sessions = await db
+      .select()
+      .from(gameSessionsTable)
+      .where(eq(gameSessionsTable.groupId, groupId));
+
+    for (const session of sessions) {
+      await db.delete(balanceSnapshotsTable).where(eq(balanceSnapshotsTable.sessionId, session.id));
+      await db.delete(gameSessionPlayersTable).where(eq(gameSessionPlayersTable.sessionId, session.id));
+    }
+
+    await db.delete(gameSessionsTable).where(eq(gameSessionsTable.groupId, groupId));
+
+    const players = await db.select().from(playersTable).where(eq(playersTable.groupId, groupId));
+    for (const player of players) {
+      await db.delete(balanceSnapshotsTable).where(eq(balanceSnapshotsTable.playerId, player.id));
+    }
+    await db.delete(playersTable).where(eq(playersTable.groupId, groupId));
+    await db.delete(bankTable).where(eq(bankTable.groupId, groupId));
 
     await db.insert(bankTable).values({
       balance: "0.00",
+      groupId,
     });
 
     res.json({ success: true });

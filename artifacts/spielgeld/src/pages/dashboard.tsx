@@ -15,6 +15,7 @@ import {
   getListPlayersQueryKey,
 } from "@workspace/api-client-react";
 import { generatePdf } from "@/lib/exportPdf";
+import { groupFetch } from "@/lib/groupFetch";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
@@ -80,8 +81,8 @@ export default function Dashboard() {
 
       const sessionsWithDetails = await Promise.all(
         endedSessions.map(async (s) => {
-          const response = await fetch(
-            `${import.meta.env.VITE_API_URL}/api/game-sessions/${s.id}/history`,
+          const response = await groupFetch(
+            `/api/game-sessions/${s.id}/history`,
           );
 
           if (!response.ok) {
