@@ -180,13 +180,15 @@ export default function Session() {
 
   const { data: chipInventory = [] } = useQuery<ChipInventoryItem[]>({
     queryKey: ["chip-inventory"],
-    queryFn: () =>
-      fetch(`${import.meta.env.VITE_API_URL ?? ""}/api/chip-inventory`).then(
-        (res) => {
-          if (!res.ok) throw new Error("chip-inventory fetch failed");
-          return res.json() as Promise<ChipInventoryItem[]>;
-        },
-      ),
+    queryFn: () => {
+      const groupId = localStorage.getItem("groupId");
+      return fetch(`${import.meta.env.VITE_API_URL ?? ""}/api/chip-inventory`, {
+        headers: groupId ? { "x-group-id": groupId } : {},
+      }).then((res) => {
+        if (!res.ok) throw new Error("chip-inventory fetch failed");
+        return res.json() as Promise<ChipInventoryItem[]>;
+      });
+    },
     retry: 5,
     retryDelay: 1000,
     staleTime: 30_000,
