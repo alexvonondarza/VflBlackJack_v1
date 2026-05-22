@@ -70,8 +70,14 @@ type ChipDistributionRow = {
   isBank?: boolean;
 };
 
-const SMALL_CHIP_MIN = 10;
-const SMALL_CHIP_MAX = 20;
+// Denominations (in cents) that get a fixed 10-15 chip allocation per participant
+const FIXED_SMALL_DENOMS_CENTS = [10, 25]; // 0.10 € and 0.25 €
+const SMALL_CHIP_TARGET_MIN = 10;
+const SMALL_CHIP_TARGET_MAX = 15;
+
+function toCents(euros: number): number {
+  return Math.round(euros * 100);
+}
 
 function calculateChipDistribution(
   players: { name: string; chipBalance: number }[],
@@ -83,81 +89,75 @@ function calculateChipDistribution(
     { name: "Bank", chipBalance: bankTarget },
   ];
   const n = allParticipants.length;
+  if (n === 0) return [];
 
-  const sortedChips = [...inventory].sort((a, b) => a.value - b.value);
-  const remainders = allParticipants.map((p) => Math.round(Number(p.chipBalance)));
+  // Work in cents to avoid floating-point issues
+  const available = new Map<number, number>();
+  for (const chip of inventory) {
+    const c = toCents(Number(chip.value));
+    available.set(c, (available.get(c) ?? 0) + chip.quantity);
+  }
+
+  const remainders = allParticipants.map((p) => toCents(Number(p.chipBalance)));
   const distributions: Record<number, number>[] = allParticipants.map(() => ({}));
 
-  sortedChips.forEach((chip, chipIndex) => {
-    let available = chip.quantity;
-    if (available === 0) return;
+  // Step 1: fixed allocation of 10–15 chips for 0.10 and 0.25 denominations
+  for (const denomCents of FIXED_SMALL_DENOMS_CENTS) {
+    let avail = available.get(denomCents) ?? 0;
+    if (avail === 0) continue;
 
-    if (chipIndex === 0 && n > 0) {
-      // Smallest denomination: target 10–20 chips per participant.
-      // If there are not enough for 10 per participant, distribute evenly.
-      const evenShare = Math.floor(available / n);
-      const target =
-        evenShare >= SMALL_CHIP_MIN
-          ? Math.min(evenShare, SMALL_CHIP_MAX)
-          : evenShare;
-
-      let remainingAvailable = available;
-      allParticipants.forEach((_, i) => {
-        const canAfford = Math.floor(remainders[i] / chip.value);
-        const give = Math.min(target, canAfford, remainingAvailable);
-        if (give > 0) {
-          distributions[i][chip.value] = give;
-          remainders[i] -= give * chip.value;
-          remainingAvailable -= give;
-        }
-      });
-    } else {
-      // All other denominations: cover the remaining balance (smallest first).
-      const demanded = remainders.map((rem) => Math.floor(rem / chip.value));
-      const totalDemanded = demanded.reduce((a, b) => a + b, 0);
-      if (totalDemanded === 0) return;
-
-      if (totalDemanded <= available) {
-        allParticipants.forEach((_, i) => {
-          if (demanded[i] > 0) {
-            distributions[i][chip.value] = demanded[i];
-            remainders[i] -= demanded[i] * chip.value;
-          }
-        });
-      } else {
-        allParticipants.forEach((_, i) => {
-          if (demanded[i] > 0) {
-            const give = Math.floor((demanded[i] / totalDemanded) * available);
-            if (give > 0) {
-              distributions[i][chip.value] = give;
-              remainders[i] -= give * chip.value;
-              available -= give;
-            }
-          }
-        });
-        const byDemand = allParticipants
-          .map((_, i) => i)
-          .sort((a, b) => demanded[b] - demanded[a]);
-        for (const idx of byDemand) {
-          if (available <= 0) break;
-          if (remainders[idx] >= chip.value) {
-            distributions[idx][chip.value] =
-              (distributions[idx][chip.value] || 0) + 1;
-            remainders[idx] -= chip.value;
-            available -= 1;
-          }
-        }
+    for (let i = 0; i < n; i++) {
+      const canAfford = Math.floor(remainders[i] / denomCents);
+      const fairShare = Math.floor(avail / (n - i));
+      const target = Math.min(SMALL_CHIP_TARGET_MAX, fairShare);
+      const give = Math.min(target, canAfford, avail);
+      if (give >= SMALL_CHIP_TARGET_MIN || (fairShare < SMALL_CHIP_TARGET_MIN && give > 0)) {
+        distributions[i][denomCents] = give;
+        remainders[i] -= give * denomCents;
+        avail -= give;
       }
     }
-  });
+    available.set(denomCents, avail);
+  }
 
-  return allParticipants.map((participant, i) => ({
-    name: participant.name,
-    targetAmount: Number(participant.chipBalance),
-    distribution: distributions[i],
-    rest: remainders[i],
-    isBank: participant.name === "Bank",
-  }));
+  // Step 2: fill remaining balance greedily with larger chips (largest first: 5, 1, 0.50)
+  // also use 0.05 only as last resort
+  const fillChips = [...available.entries()]
+    .filter(([c]) => !FIXED_SMALL_DENOMS_CENTS.includes(c))
+    .sort((a, b) => b[0] - a[0]); // largest first
+
+  for (const [denomCents] of fillChips) {
+    let avail = available.get(denomCents) ?? 0;
+    if (avail === 0) continue;
+
+    for (let i = 0; i < n; i++) {
+      const canAfford = Math.floor(remainders[i] / denomCents);
+      const give = Math.min(canAfford, avail);
+      if (give > 0) {
+        distributions[i][denomCents] = (distributions[i][denomCents] ?? 0) + give;
+        remainders[i] -= give * denomCents;
+        avail -= give;
+      }
+    }
+    available.set(denomCents, avail);
+  }
+
+  // Convert cents back to euros for display
+  return allParticipants.map((participant, i) => {
+    const dist: Record<number, number> = {};
+    for (const [centsKey, count] of Object.entries(distributions[i])) {
+      if (Number(count) > 0) {
+        dist[Number(centsKey) / 100] = Number(count);
+      }
+    }
+    return {
+      name: participant.name,
+      targetAmount: Number(participant.chipBalance),
+      distribution: dist,
+      rest: remainders[i] / 100,
+      isBank: participant.name === "Bank",
+    };
+  });
 }
 
 export default function Session() {
@@ -602,7 +602,7 @@ export default function Session() {
                         <TableCell>
                           {Object.entries(row.distribution)
                             .sort(([a], [b]) => Number(a) - Number(b))
-                            .map(([value, count]) => `${count}× ${value} €`)
+                            .map(([value, count]) => `${count}× ${Number(value).toFixed(2).replace(".", ",")} €`)
                             .join(", ") || "-"}
                         </TableCell>
                         <TableCell className="text-right">
