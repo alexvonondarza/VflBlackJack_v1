@@ -486,6 +486,18 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+
+        <footer className="flex justify-between items-center pt-2 pb-4 border-t border-border">
+          <Link
+            href="/anleitung"
+            className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
+          >
+            📖 Bedienungsanleitung
+          </Link>
+          <span className="text-xs text-muted-foreground">
+            VflBlackJack — Spielgeld-Verwaltung
+          </span>
+        </footer>
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Session from "@/pages/session";
 import Admin from "@/pages/admin";
+import Guide from "@/pages/guide";
 import { useGetActiveSession } from "@workspace/api-client-react";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ function AppRouter() {
         <Route path="/" component={Dashboard} />
         <Route path="/session" component={Session} />
         <Route path="/admin" component={Admin} />
+        <Route path="/anleitung" component={Guide} />
         <Route component={NotFound} />
       </Switch>
     </>
