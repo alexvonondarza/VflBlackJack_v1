@@ -389,12 +389,16 @@ components:
 
     CashoutResult:
       type: object
-      required: [player, cashoutAmount, newBankBalance]
+      required: [player, cashoutAmount, fixumAmount, newBankBalance]
       properties:
         player:
           $ref: "#/components/schemas/Player"
         cashoutAmount:
           type: number
+          description: The chip balance paid out to the player
+        fixumAmount:
+          type: number
+          description: The fixum amount reversed from the bank
         newBankBalance:
           type: number
 

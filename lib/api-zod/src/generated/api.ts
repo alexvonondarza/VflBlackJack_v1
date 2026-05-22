@@ -57,7 +57,10 @@ export const DeletePlayerResponse = zod.object({
       .describe("Total fixum paid (5€ per session joined + registration)"),
     createdAt: zod.string(),
   }),
-  cashoutAmount: zod.number(),
+  cashoutAmount: zod
+    .number()
+    .describe("The chip balance paid out to the player"),
+  fixumAmount: zod.number().describe("The fixum amount reversed from the bank"),
   newBankBalance: zod.number(),
 });
 

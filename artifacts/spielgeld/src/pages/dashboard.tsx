@@ -448,15 +448,33 @@ export default function Dashboard() {
                                   Spieler auszahlen?
                                 </AlertDialogTitle>
 
-                                <AlertDialogDescription className="text-muted-foreground">
-                                  Soll {player.name} wirklich ausgezahlt und
-                                  gelöscht werden?
-                                  <br />
-                                  <br />
-                                  Auszahlungsbetrag:{" "}
-                                  <strong className="text-foreground text-lg">
-                                    {formatCurrency(player.chipBalance)}
-                                  </strong>
+                                <AlertDialogDescription asChild>
+                                  <div className="text-muted-foreground space-y-3">
+                                    <p>
+                                      Soll {player.name} wirklich ausgezahlt
+                                      und gelöscht werden?
+                                    </p>
+                                    <div className="rounded-md border border-border bg-background p-3 space-y-2 text-sm">
+                                      <div className="flex justify-between items-center">
+                                        <span>Jetonbetrag (Auszahlung):</span>
+                                        <strong className="text-foreground">
+                                          {formatCurrency(player.chipBalance)}
+                                        </strong>
+                                      </div>
+                                      <div className="flex justify-between items-center">
+                                        <span>Fixum (wird aus Bank entfernt):</span>
+                                        <strong className="text-foreground">
+                                          −{formatCurrency(player.fixumPaid)}
+                                        </strong>
+                                      </div>
+                                      <div className="flex justify-between items-center border-t border-border pt-2">
+                                        <span>Reduktion Im Umlauf:</span>
+                                        <strong className="text-destructive">
+                                          −{formatCurrency(player.chipBalance + player.fixumPaid)}
+                                        </strong>
+                                      </div>
+                                    </div>
+                                  </div>
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
 

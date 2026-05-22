@@ -128,13 +128,14 @@ router.delete("/players/:id", async (req: Request, res: Response) => {
     }
 
     const cashoutAmount = Number(player.chipBalance);
+    const fixumAmount = Number(player.fixumPaid);
 
     const bank = await ensureBank(groupId);
 
     await db
       .update(bankTable)
       .set({
-        balance: sql`${bankTable.balance} - ${cashoutAmount}`,
+        balance: sql`${bankTable.balance} - ${fixumAmount}`,
         updatedAt: new Date(),
       })
       .where(and(eq(bankTable.id, bank.id), eq(bankTable.groupId, groupId)));
@@ -152,6 +153,7 @@ router.delete("/players/:id", async (req: Request, res: Response) => {
     res.json({
       player: mapPlayer(player),
       cashoutAmount,
+      fixumAmount,
       newBankBalance: Number(updatedBank.balance),
     });
   } catch (err) {

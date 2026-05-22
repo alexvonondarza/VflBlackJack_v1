@@ -31,7 +31,10 @@ export interface BuyChipsInput {
 
 export interface CashoutResult {
   player: Player;
+  /** The chip balance paid out to the player */
   cashoutAmount: number;
+  /** The fixum amount reversed from the bank */
+  fixumAmount: number;
   newBankBalance: number;
 }
 
