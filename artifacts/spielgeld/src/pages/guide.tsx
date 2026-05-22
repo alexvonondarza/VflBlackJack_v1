@@ -19,7 +19,7 @@ const SECTIONS: Section[] = [
   { id: "inventar", title: "Chip-Inventar", emoji: "🗃️" },
   { id: "beenden", title: "Spielabend beenden", emoji: "🏁" },
   { id: "admin", title: "Administration", emoji: "⚙️" },
-  { id: "neon", title: "Neon-Datenbank", emoji: "☁️" },
+  { id: "deployment", title: "Deployment", emoji: "🌐" },
   { id: "faq", title: "Häufige Fragen", emoji: "❓" },
 ];
 
@@ -204,7 +204,7 @@ export default function Guide() {
               {
                 n: 1,
                 title: "Chip-Inventar festlegen",
-                text: 'Administration → mit Passwort "admin" einloggen → Chip-Inventar ausfüllen. Trage ein wie viele Chips du physisch von jeder Sorte hast.',
+                text: "Administration aufrufen → Chip-Inventar ausfüllen. Trage ein wie viele Chips du physisch von jeder Sorte hast.",
               },
               {
                 n: 2,
@@ -588,9 +588,8 @@ export default function Guide() {
           <SectionHeading id="admin" emoji="⚙️" title="Administration" />
           <p className="text-muted-foreground text-sm leading-relaxed mb-4">
             Erreichbar über den Menü-Punkt{" "}
-            <strong className="text-foreground">Administration</strong>. Login
-            mit dem Admin-Passwort (Standard:{" "}
-            <code className="text-primary">admin</code>).
+            <strong className="text-foreground">Administration</strong>. Die
+            Seite ist direkt zugänglich — kein separates Passwort erforderlich.
           </p>
 
           <div className="space-y-3">
@@ -600,12 +599,12 @@ export default function Guide() {
                 text: "Anzahl der Chips pro Denomination einstellen. Diese Werte werden für die automatische Verteilungsberechnung verwendet.",
               },
               {
-                title: "Spieler-Übersicht",
-                text: "Alle Spieler mit vollem Kontostand und Historien — nützlich für Übersicht ohne die Hauptseite.",
+                title: "Spieler bearbeiten",
+                text: "Namen und Chip-Kontostände aller Spieler direkt anpassen — nützlich zur manuellen Korrektur.",
               },
               {
-                title: "Passwort ändern",
-                text: "Das Admin-Passwort kann jederzeit geändert werden. Es gibt kein Zurücksetzen ohne Datenbankzugriff — also merken!",
+                title: "Kompletter Reset",
+                text: "Löscht alle Spieler, Bank, Spielabende und Historien. Dieser Vorgang ist unwiderruflich und sollte nur zur Saisonvorbereitung genutzt werden.",
               },
             ].map((item) => (
               <div
@@ -621,98 +620,90 @@ export default function Guide() {
           </div>
 
           <Warning>
-            Das Standard-Passwort <code>admin</code> sollte beim ersten Login
-            sofort geändert werden — besonders wenn die App öffentlich erreichbar
-            ist.
+            Der komplette Reset kann nicht rückgängig gemacht werden. Alle
+            Daten — Spieler, Bank, Spielabende — werden dauerhaft gelöscht.
           </Warning>
 
-          {/* ───── NEON ───── */}
+          {/* ───── DEPLOYMENT ───── */}
           <SectionHeading
-            id="neon"
-            emoji="☁️"
-            title="Neon-Datenbank einrichten"
+            id="deployment"
+            emoji="🌐"
+            title="Deployment"
           />
           <p className="text-muted-foreground text-sm leading-relaxed mb-4">
-            Die integrierte Replit-Datenbank ist für die Entwicklung geeignet.
-            Für den dauerhaften Betrieb (Deployment) empfehlen wir{" "}
-            <strong className="text-foreground">Neon</strong> — eine
-            kostenlose serverlose PostgreSQL-Datenbank.
+            Die App läuft aufgeteilt auf zwei Dienste:{" "}
+            <strong className="text-foreground">Netlify</strong> hostet das
+            Frontend (React), <strong className="text-foreground">Render</strong>{" "}
+            betreibt das Backend (API + Datenbank).
           </p>
 
-          <SubHeading>Schritt 1 — Neon-Account & Datenbank anlegen</SubHeading>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+            <div className="bg-card border border-border rounded-md p-4">
+              <div className="font-bold text-sm text-primary mb-1">Frontend — Netlify</div>
+              <p className="text-sm text-muted-foreground">
+                Statische React-App. Wird bei jedem GitHub-Push automatisch neu gebaut.
+              </p>
+            </div>
+            <div className="bg-card border border-border rounded-md p-4">
+              <div className="font-bold text-sm text-primary mb-1">Backend — Render</div>
+              <p className="text-sm text-muted-foreground">
+                Express-Server + PostgreSQL-Datenbank. Läuft dauerhaft als Web Service.
+              </p>
+            </div>
+          </div>
+
+          <SubHeading>Schritt 1 — Backend-URL in Netlify eintragen</SubHeading>
+          <p className="text-muted-foreground text-sm mb-3">
+            Damit das Frontend weiß, wo das Backend läuft, muss die Render-URL
+            als Umgebungsvariable gesetzt werden:
+          </p>
           <div className="space-y-2 text-sm text-muted-foreground">
             <div className="flex items-start gap-2">
               <StepBadge n={1} />
               <span>
-                Gehe auf{" "}
-                <a
-                  href="https://neon.tech"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary underline"
-                >
-                  neon.tech
-                </a>{" "}
-                und registriere dich (kostenlos, kein Kreditkarte nötig)
+                In Netlify: <strong className="text-foreground">Site Settings → Environment Variables</strong>
               </span>
             </div>
             <div className="flex items-start gap-2">
               <StepBadge n={2} />
               <span>
-                Neues Projekt anlegen → Region wählen (z. B.{" "}
-                <em>eu-central-1</em> für Europa)
+                Variable hinzufügen:{" "}
+                <code className="text-primary">VITE_API_URL</code> ={" "}
+                <code className="text-primary">https://deine-app.onrender.com</code>
               </span>
             </div>
             <div className="flex items-start gap-2">
               <StepBadge n={3} />
               <span>
-                Im Dashboard auf{" "}
-                <strong className="text-foreground">
-                  „Connection string"
-                </strong>{" "}
-                klicken → Format{" "}
-                <code className="text-primary">psql</code> wählen → URL
-                kopieren
+                Neuen Deploy auslösen — danach sind alle API-Aufrufe korrekt geroutet.
               </span>
             </div>
           </div>
 
-          <p className="text-muted-foreground text-sm mt-3 mb-1">
-            Die Connection-String sieht so aus:
-          </p>
-          <CodeBlock>
-            {`postgresql://neondb_owner:AbcXyz123@ep-cool-name-a2b3c.eu-central-1.aws.neon.tech/neondb?sslmode=require`}
-          </CodeBlock>
-
-          <SubHeading>Schritt 2 — DATABASE_URL in Replit setzen</SubHeading>
+          <SubHeading>Schritt 2 — SPA-Routing</SubHeading>
           <p className="text-muted-foreground text-sm mb-2">
-            In deinem Replit-Projekt das Schloss-Symbol (Secrets) in der linken
-            Leiste öffnen. Den Secret{" "}
-            <code className="text-primary">DATABASE_URL</code> bearbeiten und
-            den Neon-Connection-String einfügen.
+            Die Datei <code className="text-primary">netlify.toml</code> im
+            Repo-Root stellt sicher, dass alle Seiten (z. B.{" "}
+            <code className="text-primary">/superadmin</code>,{" "}
+            <code className="text-primary">/session</code>) auch bei direktem
+            Aufruf oder Seiten-Reload funktionieren.
           </p>
-          <Warning>
-            Die alte Replit-PostgreSQL-URL wird dadurch überschrieben. Alle
-            neuen Datenbankzugriffe laufen dann gegen Neon.
-          </Warning>
+          <CodeBlock>{`# netlify.toml
+[build]
+  command = "pnpm --filter @workspace/spielgeld run build"
+  publish = "artifacts/spielgeld/dist/public"
 
-          <SubHeading>Schritt 3 — Schema auf Neon übertragen</SubHeading>
-          <p className="text-muted-foreground text-sm mb-2">
-            Einmalig im Replit-Shell ausführen:
-          </p>
-          <CodeBlock>{`pnpm --filter @workspace/db run push`}</CodeBlock>
-          <p className="text-muted-foreground text-sm">
-            Das legt alle Tabellen auf Neon an. Die Ausgabe sollte mit{" "}
-            <code className="text-primary">✓ Changes applied</code> oder{" "}
-            <code className="text-primary">No changes detected</code> enden.
-          </p>
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200`}</CodeBlock>
 
-          <SubHeading>Schritt 4 — App deployen</SubHeading>
+          <SubHeading>Schritt 3 — Render: DATABASE_URL</SubHeading>
           <p className="text-muted-foreground text-sm mb-2">
-            Jetzt kannst du die App über Replit veröffentlichen (Deploy-Button
-            oben rechts). Die deployed App nutzt automatisch die
-            Neon-Datenbank, da <code className="text-primary">DATABASE_URL</code>{" "}
-            als Secret gesetzt ist.
+            Das Backend braucht eine PostgreSQL-Datenbank. In Render unter{" "}
+            <strong className="text-foreground">Environment → Environment Variables</strong>{" "}
+            die Variable <code className="text-primary">DATABASE_URL</code> auf
+            die Render-Postgres-Connection-String setzen.
           </p>
 
           <div className="bg-card border border-border rounded-md p-4 mt-4">
@@ -720,33 +711,17 @@ export default function Guide() {
               Zusammenfassung
             </div>
             <div className="space-y-1 text-sm text-muted-foreground font-mono">
-              <div>
-                1.{" "}
-                <span className="text-foreground">
-                  neon.tech → Projekt anlegen → Connection string kopieren
-                </span>
-              </div>
-              <div>
-                2.{" "}
-                <span className="text-foreground">
-                  Replit Secrets → DATABASE_URL → Neon-URL einfügen
-                </span>
-              </div>
-              <div>
-                3.{" "}
-                <span className="text-foreground">
-                  Shell:{" "}
-                  <code className="text-primary">
-                    pnpm --filter @workspace/db run push
-                  </code>
-                </span>
-              </div>
-              <div>
-                4.{" "}
-                <span className="text-foreground">Deploy → fertig ✓</span>
-              </div>
+              <div>1. <span className="text-foreground">Render → Web Service starten (Backend)</span></div>
+              <div>2. <span className="text-foreground">Render → DATABASE_URL setzen</span></div>
+              <div>3. <span className="text-foreground">Netlify → VITE_API_URL = Render-URL</span></div>
+              <div>4. <span className="text-foreground">Netlify → Deploy starten → fertig ✓</span></div>
             </div>
           </div>
+
+          <Warning>
+            Render-Apps im kostenlosen Tarif schlafen nach 15 Minuten Inaktivität
+            ein. Der erste Aufruf nach einer Pause kann daher 30–60 Sekunden dauern.
+          </Warning>
 
           {/* ───── FAQ ───── */}
           <SectionHeading
@@ -762,8 +737,8 @@ export default function Guide() {
                 a: 'Stelle sicher dass: (1) das Chip-Inventar unter Administration ausgefüllt ist, (2) der Spieler Chips gekauft hat (Betrag > 0) und (3) ein Spielabend aktiv ist. Bei Verbindungsproblemen hilft ein Seiten-Reload.',
               },
               {
-                q: "Wie ändere ich das Admin-Passwort?",
-                a: 'Administration → einloggen → Bereich "Passwort ändern" → altes und neues Passwort eingeben → Bestätigen.',
+                q: "Wie erreiche ich die Superadmin-Seite?",
+                a: 'Auf der Startseite (Gruppenauswahl) ganz unten auf "Superadmin" klicken. Dort können alle Gruppen eingesehen und gelöscht werden. Passwort: superadmin (Standard).',
               },
               {
                 q: "Kann ich einen Spieler aus einem laufenden Spielabend entfernen?",
